@@ -90,6 +90,7 @@ def _setup_dist_from_mpi(master_addr, backend, port, n_attempts, verbose):
             print(f'Using cuda {use_cuda}')
             local_rank = mpi_rank % 8
             device = torch.device("cuda", local_rank) if use_cuda else torch.device("cpu")
+            
             # torch.cuda.set_device(local_rank)
             torch.cuda.device(device)
 

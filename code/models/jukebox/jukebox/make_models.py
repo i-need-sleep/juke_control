@@ -25,7 +25,7 @@ def load_checkpoint(path):
     restore = path
     if restore.startswith(REMOTE_PREFIX):
         remote_path = restore
-        local_path = os.path.join(os.path.expanduser("~/.cache"), remote_path[len(REMOTE_PREFIX):])
+        local_path = os.path.join('/l/users/yichen.huang/misc/flair_cache', remote_path[len(REMOTE_PREFIX):])
         if dist.get_rank() % 8 == 0:
             print("Downloading from azure")
             if not os.path.exists(os.path.dirname(local_path)):
