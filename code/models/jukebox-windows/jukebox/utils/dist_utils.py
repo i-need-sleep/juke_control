@@ -1,7 +1,7 @@
 import os
 from time import sleep
 import torch
-import jukebox.utils.dist_adapter as dist
+import torch.distributed as dist
 
 def print_once(msg):
     if (not dist.is_available()) or dist.get_rank()==0:
@@ -19,11 +19,6 @@ def allgather(x):
     xs = torch.cat(xs, dim=0)
     return xs
 
-def allreduce(x, op=dist.ReduceOp.SUM):
-    x = torch.tensor(x).float().cuda()
-    dist.all_reduce(x, op=op)
-    return x.item()
-
 def allgather_lists(xs):
     bs = len(xs)
     total_bs = dist.get_world_size()*len(xs)
@@ -40,23 +35,8 @@ def allgather_lists(xs):
     return [xs[i][:lengths[i]].cpu().numpy().tolist() for i in range(total_bs)]
 
 def setup_dist_from_mpi(
-    master_addr="127.0.0.1", backend="gloo", port=29500, n_attempts=5, verbose=False
+    master_addr="127.0.0.1", backend="nccl", port=29500, n_attempts=5, verbose=False
 ):
-    if dist.is_available():
-        return _setup_dist_from_mpi(master_addr, backend, port, n_attempts, verbose)
-    else:
-        use_cuda = torch.cuda.is_available()
-        print(f'Using cuda {use_cuda}')
-
-        mpi_rank = 0
-        local_rank = 0
-
-        device = torch.device("cuda", local_rank) if use_cuda else torch.device("cpu")
-        torch.cuda.set_device(local_rank)
-
-        return mpi_rank, local_rank, device
-
-def _setup_dist_from_mpi(master_addr, backend, port, n_attempts, verbose):
     from mpi4py import MPI  # This must be imported in order to get e   rrors from all ranks to show up
 
     mpi_rank = MPI.COMM_WORLD.Get_rank()
@@ -83,14 +63,12 @@ def _setup_dist_from_mpi(master_addr, backend, port, n_attempts, verbose):
     # We guard against the failure and then retry
     for attempt_idx in range(n_attempts):
         try:
-            dist.init_process_group(backend=backend, init_method=f"env://")
-            assert dist.get_rank() == mpi_rank
-
             use_cuda = torch.cuda.is_available()
             print(f'Using cuda {use_cuda}')
             local_rank = mpi_rank % 8
             device = torch.device("cuda", local_rank) if use_cuda else torch.device("cpu")
-            torch.cuda.set_device(local_rank)
+            torch.cuda.device(device)
+            # torch.cuda.set_device(local_rank) # For now, use single GPUs only
 
             return mpi_rank, local_rank, device
         except RuntimeError as e:
