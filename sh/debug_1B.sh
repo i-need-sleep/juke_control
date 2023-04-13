@@ -22,6 +22,7 @@ source /apps/local/anaconda3/bin/activate jukebox          # 调用 virtual env
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 export HF_HOME=/l/users/yichen.huang/misc/cache
 export XDG_CACHE_HOME=/l/users/yichen.huang/misc/cache
-python sample.py --model=5b_lyrics --name=sample_5b --levels=3 --sample_length_in_seconds=20 \
+export FLAIR_CACHE_ROOT=/l/users/yichen.huang/misc/flair_cache
+python sample.py --model=1b_lyrics --name=sample_1b --levels=3 --sample_length_in_seconds=20 \
 --total_sample_length_in_seconds=180 --sr=44100 --n_samples=6 --hop_fraction=0.5,0.5,0.125
 echo "FINISH"                       # 输出起始信息
