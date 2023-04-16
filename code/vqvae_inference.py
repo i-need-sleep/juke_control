@@ -50,8 +50,7 @@ def run_vqvaes(dir, out_dir):
         with torch.no_grad():
             for prior_lv, prior in enumerate(priors):
                 print(prior_lv)
-
-                sample_path = uglobals.DEBUG_VOCAL_PATH
+                
                 sr, data = wavfile.read(sample_path)
 
                 raw_to_tokens = prior.raw_to_tokens
