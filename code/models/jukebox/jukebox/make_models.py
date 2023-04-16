@@ -4,6 +4,7 @@ Load from checkpoints
 Test on dummy outputs to see if everything matches
 """
 import os
+import platform
 import numpy as np
 import torch as t
 import jukebox.utils.dist_adapter as dist
@@ -25,7 +26,11 @@ def load_checkpoint(path):
     restore = path
     if restore.startswith(REMOTE_PREFIX):
         remote_path = restore
-        local_path = os.path.join('/l/users/yichen.huang/misc/flair_cache', remote_path[len(REMOTE_PREFIX):])
+        if "Windows" in platform.platform():
+            local_path = os.path.join(os.path.expanduser("~/.cache"), remote_path[len(REMOTE_PREFIX):])
+            print(local_path)
+        else:
+            local_path = os.path.join('/l/users/yichen.huang/misc/flair_cache', remote_path[len(REMOTE_PREFIX):])
         if dist.get_rank() % 8 == 0:
             print("Downloading from azure")
             if not os.path.exists(os.path.dirname(local_path)):
