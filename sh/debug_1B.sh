@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=debug       # 任务名
+#SBATCH --job-name=inference_1B       # 任务名
 #SBATCH --nodes=1                   # 这里不用动 多节点脚本请查官方文档
 #SBATCH --ntasks=1                  # 这里不用动 多任务脚本请查官方文档
 #SBATCH --cpus-per-task=4           # 要几块CPU (一般4块就够用了)
@@ -15,7 +15,7 @@
 
 nvidia-smi
 nvcc --version
-cd /l/users/yichen.huang/juke_control/code/models/jukebox/jukebox   # 切到程序目录
+cd /l/users/yichen.huang/juke_control/code/models/jukebox   # 切到程序目录
 
 echo "START"               # 输出起始信息
 source /apps/local/anaconda3/bin/activate jukebox          # 调用 virtual env
@@ -23,6 +23,6 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 export HF_HOME=/l/users/yichen.huang/misc/cache
 export XDG_CACHE_HOME=/l/users/yichen.huang/misc/cache
 export FLAIR_CACHE_ROOT=/l/users/yichen.huang/misc/flair_cache
-python sample.py --model=1b_lyrics --name=sample_1b --levels=3 --sample_length_in_seconds=20 \
---total_sample_length_in_seconds=180 --sr=44100 --n_samples=6 --hop_fraction=0.5,0.5,0.125
+python jukebox/sample.py --model=1b_lyrics --name=sample_1b --levels=3 --sample_length_in_seconds=20 \
+--total_sample_length_in_seconds=180 --sr=44100 --n_samples=16 --hop_fraction=0.5,0.5,0.125
 echo "FINISH"                       # 输出起始信息

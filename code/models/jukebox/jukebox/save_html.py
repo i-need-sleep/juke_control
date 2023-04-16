@@ -79,6 +79,7 @@ def _save_item_html(item_dir, item_id, item_name, data):
 
         # Labels and Lyrics
         print(f"<pre style='white-space: pre-wrap;'>", end="", file=html)
+        return # Dirty fix
         print(f"<div>Artist {artist}, Genre {genre}</div>", file=html)
         lyrics = [c for c in lyrics]  # already characters actually
         lyrics = [''] + lyrics[:-1]  # input lyrics are shifted by 1
