@@ -50,7 +50,7 @@ def run_vqvaes(dir, out_dir):
         with torch.no_grad():
             for prior_lv, prior in enumerate(priors):
                 print(prior_lv)
-                
+
                 sr, data = wavfile.read(sample_path)
 
                 raw_to_tokens = prior.raw_to_tokens
@@ -97,7 +97,8 @@ def run_vqvaes(dir, out_dir):
                 save_wav(save_name_recons, x_recons, hps.sr)
 
 if __name__ == '__main__':
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/accompaniment', f'{uglobals.MUSDB18_ORACLE}')
+    # run_vqvaes(f'{uglobals.MUSDB18_PATH}/debug/vocals', f'{uglobals.MUSDB18_ORACLE}')
+    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
+    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/acc')
+    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals')
+    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/accompaniment', f'{uglobals.MUSDB18_ORACLE}/test.acc')
