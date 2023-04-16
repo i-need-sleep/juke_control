@@ -26,7 +26,7 @@ def run_vqvaes(dir, out_dir):
         sample_length_in_seconds = 20,
         total_sample_length_in_seconds = 180,
         sr = 44100,
-        n_samples = 16,
+        n_samples = 1,
         hop_fraction = [0.5, 0.5, 0.125]
     )
 
@@ -48,7 +48,7 @@ def run_vqvaes(dir, out_dir):
         save_name_recons = f'{out_dir}/recons/{file_name}'
 
         with torch.no_grad():
-            for prior_lv, prior in enumerate(priors):
+            for prior_lv, prior in enumerate(reversed(priors)):
                 print(prior_lv)
 
                 sr, data = wavfile.read(sample_path)
@@ -62,42 +62,17 @@ def run_vqvaes(dir, out_dir):
 
                 # If we have enough vram
                 z = prior.encode(x, bs_chunks=x.shape[0])
+                print(len(z))
+                print(prior_lv)
                 x_recons = prior.decode(z, bs_chunks=z[prior_lv].shape[0])
 
-                # while i <= x.shape[1]:
-                #     print(i)
-                
-                #     x_step = x[:, i: i + STEP_SIZE, :]
-
-                #     z_step = prior.encode(x_step, bs_chunks=x.shape[0])
-                #     x_recons_step = prior.decode(z_step, bs_chunks=z_step[prior_lv].shape[0])
-
-                #     i += STEP_SIZE
-
-                #     # Piece the steps together
-                #     for i, val in enumerate(z_step):
-                #         z_step[i] = val.cpu()
-                #     for i, val in enumerate(x_recons_step):
-                #         x_recons_step[i] = val.cpu()
-
-                #     if z == []:
-                #         z = z_step
-                #         x_recons = x_recons_step
-                #         print(len(z_step))
-                #         print(z_step[0].shape)
-                #         print(len(x_recons_step))
-                #         print(x_recons_step[0].shape)
-                #     else:
-                #         for i, val in enumerate(z):
-                #             z[i] = torch.cat((val, z_step[i]), 0)
-                #         for i, val in enumerate(x_recons):
-                #             x_recons[i] = torch.cat((val, x_recons_step[i]), 1)
-
-                torch.save(z, save_name_z)
-                save_wav(save_name_recons, x_recons, hps.sr)
+                torch.save(z, f'{save_name_z}_{prior_lv}')
+                if not os.path.exists(f'{save_name_recons}_{prior_lv}'):    
+                    os.makedirs(f'{save_name_recons}_{prior_lv}')
+                save_wav(f'{save_name_recons}_{prior_lv}', x_recons, hps.sr)
 
 if __name__ == '__main__':
-    # run_vqvaes(f'{uglobals.MUSDB18_PATH}/debug/vocals', f'{uglobals.MUSDB18_ORACLE}')
+    # run_vqvaes(f'{uglobals.MUSDB18_PATH}/debug', f'{uglobals.MUSDB18_ORACLE}/debug')
     run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
     run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/acc')
     run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals')
