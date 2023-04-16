@@ -43,14 +43,15 @@ def run_vqvaes(dir, out_dir):
         os.makedirs(f'{out_dir}/recons')
 
     for file_name in os.listdir(dir):
+        if not 'wav' in file_name:
+            continue
         sample_path = f'{dir}/{file_name}'
         save_name_z = f'{out_dir}/z/{file_name}'.replace('wav', 'pt')
         save_name_recons = f'{out_dir}/recons/{file_name}'
 
         with torch.no_grad():
             for prior_lv, prior in enumerate(reversed(priors)):
-                print(prior_lv)
-
+                
                 sr, data = wavfile.read(sample_path)
 
                 raw_to_tokens = prior.raw_to_tokens
@@ -62,8 +63,6 @@ def run_vqvaes(dir, out_dir):
 
                 # If we have enough vram
                 z = prior.encode(x, bs_chunks=x.shape[0])
-                print(len(z))
-                print(prior_lv)
                 x_recons = prior.decode(z, bs_chunks=z[prior_lv].shape[0])
 
                 torch.save(z, save_name_z.replace('.pt', f'{prior_lv}.pt'))
