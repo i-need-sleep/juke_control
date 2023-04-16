@@ -8,6 +8,10 @@ data/*/*
 */data
 
 *.mid
+*.wav
+
+*.tar 
+*.html
 
 *.npy
 *.npz
