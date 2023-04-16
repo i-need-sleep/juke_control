@@ -65,7 +65,7 @@ def run_vqvaes(dir, out_dir):
                 z = prior.encode(x, bs_chunks=x.shape[0])
                 x_recons = prior.decode(z, bs_chunks=z[prior_lv].shape[0])
 
-                torch.save(z, save_name_z.replace('.pt', f'{3-prior_lv}.pt'))
+                torch.save(z, save_name_z.replace('.pt', f'_{3-prior_lv}.pt'))
                 if not os.path.exists(f'{save_name_recons}_{3-prior_lv}'):    
                     os.makedirs(f'{save_name_recons}_{3-prior_lv}')
                 save_wav(f'{save_name_recons}_{3-prior_lv}', x_recons, hps.sr)
