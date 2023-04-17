@@ -7,4 +7,5 @@ DEBUG_VOCAL_PATH = f'{MUSDB18_PATH}/debug/A Classic Education - NightOwl_vocals.
 DEBUG_ACC_PATH = f'{MUSDB18_PATH}/debug/A Classic Education - NightOwl_acc.wav'
 
 # Output
-MUSDB18_ORACLE = '../results/outputs/musdb18/oracle'
+OUT_PATH = '../results/outputs'
+MUSDB18_ORACLE = f'{OUT_PATH}/musdb18/oracle'

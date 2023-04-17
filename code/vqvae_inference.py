@@ -62,6 +62,7 @@ def run_vqvaes(dir, out_dir):
                 z, x_recons = [], []
 
                 # If we have enough vram
+                # TODO: Otherwise, slice up the audio
                 z = prior.encode(x, bs_chunks=x.shape[0])
                 x_recons = prior.decode(z, bs_chunks=z[prior_lv].shape[0])
 
@@ -71,7 +72,10 @@ def run_vqvaes(dir, out_dir):
                 save_wav(f'{save_name_recons}_{2-prior_lv}', x_recons, hps.sr)
 
 if __name__ == '__main__':
-    run_vqvaes(f'{uglobals.MUSDB18_PATH}/debug', f'{uglobals.MUSDB18_ORACLE}/debug')
+    try:
+        run_vqvaes(f'{uglobals.MUSDB18_PATH}/debug', f'{uglobals.MUSDB18_ORACLE}/debug')
+    except:
+        pass
     run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
     run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/acc')
     run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals')
