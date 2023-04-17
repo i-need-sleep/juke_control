@@ -29,4 +29,11 @@ for split in splits:
             if not os.path.exists(save_dir):    
                 os.makedirs(save_dir)
 
-            stempeg.write_audio(path=f'{save_dir}/{file_name}'.replace('stem.mp4', 'wav'), data=s, sample_rate=rate, output_sample_rate=rate)
+            # Split songs into chunks of < 1 min
+            i = 0
+            chunk_size = rate * 60
+            while i <= s.shape[0]:
+                s_chunk = s[i: i + chunk_size]
+
+                stempeg.write_audio(path=f'{save_dir}/{file_name}'.replace('.stem.mp4', f'_{int(i/chunk_size)}.wav'), data=s_chunk, sample_rate=rate, output_sample_rate=rate)
+                i += chunk_size

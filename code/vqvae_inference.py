@@ -62,6 +62,7 @@ def run_vqvaes(dir, out_dir):
                 z, x_recons = [], []
 
                 # If we have enough vram
+                # TODO: Otherwise, slice up the audio
                 z = prior.encode(x, bs_chunks=x.shape[0])
                 x_recons = prior.decode(z, bs_chunks=z[prior_lv].shape[0])
 
