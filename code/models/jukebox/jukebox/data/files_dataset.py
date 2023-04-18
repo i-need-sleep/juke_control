@@ -12,7 +12,8 @@ class FilesAudioDataset(Dataset):
         super().__init__()
         self.sr = hps.sr
         self.channels = hps.channels
-        self.min_duration = hps.min_duration or math.ceil(hps.sample_length / hps.sr)
+        # self.min_duration = hps.min_duration or math.ceil(hps.sample_length / hps.sr)
+        self.min_duration = math.ceil(hps.sample_length / hps.sr)
         self.max_duration = hps.max_duration or math.inf
         self.sample_length = hps.sample_length
         assert hps.sample_length / hps.sr < self.min_duration, f'Sample length {hps.sample_length} per sr {hps.sr} ({hps.sample_length / hps.sr:.2f}) should be shorter than min duration {self.min_duration}'
@@ -75,7 +76,7 @@ class FilesAudioDataset(Dataset):
             example, ("unknown", "classical", "") could be a metadata for a
             piano piece.
         """
-        return None, None, None
+        return ("unknown", "unknown", "")
 
     def get_song_chunk(self, index, offset, test=False):
         filename, total_length = self.files[index], self.durations[index]

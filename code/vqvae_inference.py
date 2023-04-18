@@ -3,6 +3,7 @@ import argparse
 
 import torch
 from scipy.io import wavfile
+from tqdm import tqdm
 
 import jukebox
 from jukebox.utils.dist_utils import setup_dist_from_mpi
@@ -42,7 +43,7 @@ def run_vqvaes(dir, out_dir):
     if not os.path.exists(f'{out_dir}/recons'):    
         os.makedirs(f'{out_dir}/recons')
 
-    for file_name in os.listdir(dir):
+    for file_name in tqdm(os.listdir(dir)):
         if not 'wav' in file_name:
             continue
         sample_path = f'{dir}/{file_name}'
@@ -57,12 +58,10 @@ def run_vqvaes(dir, out_dir):
                 raw_to_tokens = prior.raw_to_tokens
                 duration = (int(len(data)) // raw_to_tokens) * raw_to_tokens
                 x = load_prompts([sample_path], duration, hps)
-
+                
                 i = 0
                 z, x_recons = [], []
 
-                # If we have enough vram
-                # TODO: Otherwise, slice up the audio
                 z = prior.encode(x, bs_chunks=x.shape[0])
                 x_recons = prior.decode(z, bs_chunks=z[prior_lv].shape[0])
 
@@ -72,11 +71,11 @@ def run_vqvaes(dir, out_dir):
                 save_wav(f'{save_name_recons}_{2-prior_lv}', x_recons, hps.sr)
 
 if __name__ == '__main__':
-    try:
-        run_vqvaes(f'{uglobals.MUSDB18_PATH}/debug', f'{uglobals.MUSDB18_ORACLE}/debug')
-    except:
-        pass
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/acc')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/accompaniment', f'{uglobals.MUSDB18_ORACLE}/test.acc')
+    # try:
+    #     run_vqvaes(f'{uglobals.MUSDB18_PATH}/debug', f'{uglobals.MUSDB18_ORACLE}/debug')
+    # except:
+    #     pass
+    # run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
+    # run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/acc')
+    # run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals')
+    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/accompaniment', f'{uglobals.MUSDB18_ORACLE}/test/acc')
