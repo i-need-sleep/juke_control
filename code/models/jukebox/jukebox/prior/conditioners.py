@@ -93,6 +93,9 @@ class RangeEmbedding(nn.Module):
         pos_start[pos_start < self.pos_min] = self.pos_min
         pos_start[pos_start >= self.pos_max] = self.pos_max - 10
 
+        pos_end[pos_end < self.pos_min] = self.pos_min
+        pos_end[pos_end >= self.pos_max] = self.pos_max - 5
+
         assert (self.pos_min <= pos_start).all() and (pos_start < self.pos_max).all(), f"Range is [{self.pos_min},{self.pos_max}), got {pos_start}"
         pos_start = pos_start.float()
         if pos_end is not None:

@@ -194,4 +194,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    # --restore_prior="path/to/checkpoint" --lr_use_linear_decay --lr_start_linear_decay={already_trained_steps} --lr_decay={decay_steps_as_needed}
+
     finetune(args)
