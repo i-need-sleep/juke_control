@@ -93,14 +93,11 @@ class RangeEmbedding(nn.Module):
         pos_start[pos_start < self.pos_min] = self.pos_min
         pos_start[pos_start >= self.pos_max] = self.pos_max - 10
 
-        pos_end[pos_end < self.pos_min] = self.pos_min
-        pos_end[pos_end >= self.pos_max] = self.pos_max - 5
-
         assert (self.pos_min <= pos_start).all() and (pos_start < self.pos_max).all(), f"Range is [{self.pos_min},{self.pos_max}), got {pos_start}"
         pos_start = pos_start.float()
         if pos_end is not None:
             assert len(pos_end.shape) == 2, f"Expected shape with 2 dims, got {pos_end.shape}"
-            if self.clamp:
+            if self.clamp or True: # More dirty fix
                 pos_end = pos_end.clamp(self.pos_min, self.pos_max)
             assert (self.pos_min <= pos_end).all() and (pos_end <= self.pos_max).all(), f"Range is [{self.pos_min},{self.pos_max}), got {pos_end}"
             pos_end = pos_end.float()
