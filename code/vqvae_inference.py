@@ -43,6 +43,7 @@ def run_vqvaes(dir, out_dir):
         os.makedirs(f'{out_dir}/recons')
 
     for file_name in os.listdir(dir):
+        print(file_name)
         if not 'wav' in file_name:
             continue
         sample_path = f'{dir}/{file_name}'
@@ -72,11 +73,7 @@ def run_vqvaes(dir, out_dir):
                 save_wav(f'{save_name_recons}_{2-prior_lv}', x_recons, hps.sr)
 
 if __name__ == '__main__':
-    try:
-        run_vqvaes(f'{uglobals.MUSDB18_PATH}/debug', f'{uglobals.MUSDB18_ORACLE}/debug')
-    except:
-        pass
     run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/acc')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/accompaniment', f'{uglobals.MUSDB18_ORACLE}/test.acc')
+    # run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/acc')
+    # run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals')
+    # run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/accompaniment', f'{uglobals.MUSDB18_ORACLE}/test.acc')
