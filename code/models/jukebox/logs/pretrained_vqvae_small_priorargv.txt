@@ -1,0 +1,1 @@
+jukebox/train.py --hps=vqvae,small_prior,all_fp16,cpu_ema --name=pretrained_vqvae_small_prior --sample_length=1048576 --bs=4 --aug_shift --aug_blend --audio_files_dir=../../../data/musdb18/processed/train/vocals --labels=False --train --test --prior --levels=3 --level=2 --weight_decay=0.01 --save_iters=1000
