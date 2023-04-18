@@ -27,6 +27,9 @@ data/*/*
 
 *.zip
 
+# Logs
+./code/logs
+
 # Models
 *.pt
 
