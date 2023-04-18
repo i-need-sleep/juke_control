@@ -70,6 +70,10 @@ class ConditionalAutoregressive2D(nn.Module):
         if not y_cond:
             self.start_token = nn.Parameter(get_normal(1, width, std=0.01 * init_scale))
 
+        # sep and pad tokens for finetuning 
+        self.sep_token = nn.Parameter(get_normal(1, width, std=0.01 * init_scale))
+        self.pad_token = nn.Parameter(get_normal(1, width, std=0.01 * init_scale))
+
         self.pos_emb = PositionEmbedding(input_shape=input_shape, width=width, init_scale=init_scale, pos_init=pos_init)
         self.pos_emb_dropout = nn.Dropout(emb_dropout)
 
@@ -386,6 +390,77 @@ class ConditionalAutoregressive2D(nn.Module):
             loss, preds_forw = self.forward(x, x_cond, y_cond, encoder_kv, get_preds=True)
             max_err = t.max(t.abs(preds_sample - preds_forw))
             assert max_err <= 1e-6, f"Max err is {max_err} {[i for i in range(l) if t.max(t.abs(preds_sample - preds_forw)[:, i, :]) > 1e-6]}"
+    
+    def finetune_forward(self, x, pred_mask, sep_mask, pad_mask, x_cond=None, y_cond=None, encoder_kv=None, fp16=False, loss_full=False,
+                encode=False, get_preds=False, get_acts=False, get_sep_loss=False):
+        # Pprocess.
+        with t.no_grad():
+            x = self.preprocess(x)
+
+        N, D = x.shape
+        assert isinstance(x, t.cuda.LongTensor)
+        assert (0 <= x).all() and (x < self.bins).all()
+
+        if self.y_cond:
+            assert y_cond is not None
+            assert y_cond.shape == (N, 1, self.width)
+        else:
+            assert y_cond is None
+
+        if self.x_cond:
+            assert x_cond is not None
+            assert x_cond.shape == (N, D, self.width) or x_cond.shape == (N, 1, self.width), f"{x_cond.shape} != {(N, D, self.width)} nor {(N, 1, self.width)}. Did you pass the correct --sample_length?"
+        else:
+            assert x_cond is None
+            x_cond = t.zeros((N, 1, self.width), device=x.device, dtype=t.float)
+
+        x_t = x # Target
+        x = self.x_emb(x) # X emb
+        x = roll(x, 1) # Shift by 1
+
+        # Also shift the masks
+        pred_mask = roll(pred_mask, 1)
+        sep_mask = roll(sep_mask, 1)
+        pad_mask = roll(pad_mask, 1)
+
+        # Apply the sep and pad masks
+        x[sep_mask == 1] = self.sep_token
+        x[pad_mask == 1] = self.pad_token
+        
+        # Fill in start token. The first token is always pad and can be safely replaced.
+        if self.y_cond:
+            x[:,0] = y_cond.view(N, self.width)
+        else:
+            x[:,0] = self.start_token
+
+        x = self.x_emb_dropout(x) + self.pos_emb_dropout(self.pos_emb()) + x_cond # Pos emb and dropout
+
+        x = self.transformer(x, encoder_kv=encoder_kv, fp16=fp16) # Transformer
+        if self.add_cond_after_transformer: # Piped doesnt add x_cond
+            x = x + x_cond
+
+        acts = x
+        if self.only_encode:
+            return x
+        x = self.x_out(x) # Predictions
+
+        if get_sep_loss:
+            assert self.prime_len is not None
+            x_gen = x[:, self.prime_len:][pred_mask == 1].reshape(-1, self.bins)
+
+            gen_loss = F.cross_entropy(x_gen, x_t[:, self.prime_len:][pred_mask == 1].reshape(-1)) / np.log(2.)
+            prime_loss = t.zeros_like(gen_loss)
+
+            loss = (prime_loss, gen_loss) # Note order! Prime is first
+        else:
+            loss = F.cross_entropy(x.view(-1, self.bins), x_t.view(-1)) / np.log(2.)  # Loss
+
+        if get_preds:
+            return loss, x
+        elif get_acts:
+            return loss, acts
+        else:
+            return loss, None
 
 
 def test_prior(input_shape, encoder_dims, blocks, heads, chunk_size):

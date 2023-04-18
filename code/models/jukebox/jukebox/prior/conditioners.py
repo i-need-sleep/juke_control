@@ -88,6 +88,11 @@ class RangeEmbedding(nn.Module):
     def forward(self, pos_start, pos_end=None):
         # Check if [pos_start,pos_end] in [pos_min, pos_max)
         assert len(pos_start.shape) == 2, f"Expected shape with 2 dims, got {pos_start.shape}"
+        
+        # Dirty fix
+        pos_start[pos_start < self.pos_min] = self.pos_min
+        pos_start[pos_start >= self.pos_max] = self.pos_max - 10
+
         assert (self.pos_min <= pos_start).all() and (pos_start < self.pos_max).all(), f"Range is [{self.pos_min},{self.pos_max}), got {pos_start}"
         pos_start = pos_start.float()
         if pos_end is not None:

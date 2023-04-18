@@ -323,7 +323,7 @@ class SimplePrior(nn.Module):
         x_cond, y_cond, prime = self.get_cond(z_conds, y)
         if self.copy_input:
             prime = z[:,:self.n_tokens]
-        if self.single_enc_dec:
+        if self.single_enc_dec: # True for the top level prior
             z, x_cond = self.prior_preprocess([prime, z], [None, x_cond])
             (prime_loss, gen_loss), preds = self.prior(z, x_cond, y_cond, fp16=fp16, get_sep_loss=True, get_preds=get_preds)
         else:
@@ -346,12 +346,57 @@ class SimplePrior(nn.Module):
     def forward(self, x, y=None, fp16=False, decode=False, get_preds=False):
         bs = x.shape[0]
         z, *z_conds = self.encode(x, bs_chunks=bs) # [bs, 8192], []
-        print('fffffff')
-        print(y)
-        print(z.shape)
         loss, metrics = self.z_forward(z=z, z_conds=z_conds, y=y, fp16=fp16, get_preds=get_preds)
         if decode:
             x_out = self.decode([z, *z_conds])
         else:
             x_out = None
         return x_out, loss, metrics
+    
+    def finetune_forward(self, z, pred_mask, sep_mask, pad_mask, y=None, fp16=False, decode=False, get_preds=False):
+        z_conds = []
+        loss, metrics = self.finetune_z_forward(z, pred_mask, sep_mask, pad_mask, z_conds=z_conds, y=y, fp16=fp16, get_preds=get_preds)
+        if decode:
+            x_out = self.decode([z, *z_conds])
+        else:
+            x_out = None
+        return x_out, loss, metrics
+    
+    def finetune_z_forward(self, z, pred_mask, sep_mask, pad_mask, z_conds=[], y=None, fp16=False, get_preds=False, get_attn_weights=False):
+        """
+        Arguments:
+            get_attn_weights (bool or set): Makes forward prop dump
+                self-attention softmaxes to self.prior.transformer.ws. Either a
+                set of layer indices indicating which layers to store, or a
+                boolean value indicating whether to dump all.
+        """
+        assert isinstance(get_attn_weights, (bool, set))
+        if get_attn_weights:
+            self.prior.transformer.set_record_attn(get_attn_weights)
+        x_cond, y_cond, prime = self.get_cond(z_conds, y)
+        if self.copy_input:
+            prime = z[:,:self.n_tokens]
+        if self.single_enc_dec: # True for the top level prior
+            z, x_cond = self.prior_preprocess([prime, z], [None, x_cond])
+
+            # Account for the left-concatted cond
+            sep_mask = t.cat((t.zeros_like(prime), sep_mask), dim=1)
+            pad_mask = t.cat((t.zeros_like(prime), pad_mask), dim=1)
+
+            (prime_loss, gen_loss), preds = self.prior.finetune_forward(z, pred_mask, sep_mask, pad_mask, x_cond, y_cond, fp16=fp16, get_sep_loss=True, get_preds=get_preds)
+        else:
+            encoder_kv = self.get_encoder_kv(prime, fp16=fp16)
+            prime_loss = self.get_prime_loss(encoder_kv, prime)
+            gen_loss, preds = self.prior(z, x_cond, y_cond, encoder_kv, fp16=fp16, get_preds=get_preds)
+        loss = (self.prime_loss_fraction*prime_loss*self.prime_loss_dims/self.total_loss_dims) + \
+                   (gen_loss*self.gen_loss_dims/self.total_loss_dims)
+        metrics=dict(bpd=gen_loss.clone().detach(), prime_loss=prime_loss.clone().detach(),
+                     gen_loss=gen_loss.clone().detach())
+        if get_preds:
+            metrics["preds"] = preds.clone().detach()
+        if get_attn_weights:
+            ws = self.prior.transformer.ws
+            self.prior.transformer.set_record_attn(False)
+            return ws
+        else:
+            return loss, metrics

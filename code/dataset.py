@@ -86,7 +86,7 @@ class Z2ZDataset(Dataset):
                     'sep_mask': sep_mask,
                     'pad_mask': pad_mask,
                     'song_name': song_name,
-                    'start': start,
+                    'start': start, # In z length
                     'total': src.shape[1]
                 })
 
@@ -133,6 +133,8 @@ def mr_collate(data):
 def build_z2z_loader(src_dir, tar_dir, batch_size, shuffle=True):
     dataset = Z2ZDataset(src_dir, tar_dir)
     loader = DataLoader(dataset, batch_size=batch_size, collate_fn=mr_collate, shuffle=shuffle)
+    print(f'Dataset {src_dir} - {tar_dir}')
+    print(f'Size {len(dataset)}')
     return loader
     
 if __name__ == '__main__':
