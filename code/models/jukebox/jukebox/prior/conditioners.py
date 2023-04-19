@@ -128,7 +128,7 @@ class RangeEmbedding(nn.Module):
             return self.emb(bins)
         except:
             print('emb exception')
-            return t.zeros(pos_start.shape[0], pos_start.shape[1], 2048)
+            return t.zeros(pos_start.shape[0], pos_start.shape[1], 2048).cuda()
 
 
 class LabelConditioner(nn.Module):
