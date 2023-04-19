@@ -129,11 +129,11 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
         else:
             forw_kwargs = dict(loss_fn=hps.loss_fn, hps=hps)
             
-        # Forward
-        x_out, loss, _metrics = orig_model.finetune_forward(z, pred_mask, sep_mask, pad_mask, **forw_kwargs)
-
-        # Backward
         try:
+            # Forward
+            x_out, loss, _metrics = orig_model.finetune_forward(z, pred_mask, sep_mask, pad_mask, **forw_kwargs)
+
+            # Backward
             loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=list(model.parameters()),
                                                                          scalar=scalar, fp16=hps.fp16, logger=logger)
         except:
