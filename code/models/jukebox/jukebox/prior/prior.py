@@ -353,7 +353,7 @@ class SimplePrior(nn.Module):
             x_out = None
         return x_out, loss, metrics
     
-    def finetune_forward(self, z, pred_mask, sep_mask, pad_mask, y=None, fp16=False, decode=False, get_preds=False):
+    def finetune_forward(self, z, pred_mask, sep_mask, pad_mask, y, fp16=False, decode=False, get_preds=False):
         z_conds = []
         loss, metrics = self.finetune_z_forward(z, pred_mask, sep_mask, pad_mask, z_conds=z_conds, y=y, fp16=fp16, get_preds=get_preds)
         if decode:
@@ -362,7 +362,7 @@ class SimplePrior(nn.Module):
             x_out = None
         return x_out, loss, metrics
     
-    def finetune_z_forward(self, z, pred_mask, sep_mask, pad_mask, z_conds=[], y=None, fp16=False, get_preds=False, get_attn_weights=False):
+    def finetune_z_forward(self, z, pred_mask, sep_mask, pad_mask, y=None, z_conds=[], fp16=False, get_preds=False, get_attn_weights=False):
         """
         Arguments:
             get_attn_weights (bool or set): Makes forward prop dump
@@ -400,3 +400,33 @@ class SimplePrior(nn.Module):
             return ws
         else:
             return loss, metrics
+        
+    def finetune_sample_z(self, z, pred_mask, sep_mask, pad_mask, y=None, z_conds=[], fp16=False, get_preds=False, get_attn_weights=False):
+        """
+        Arguments:
+            get_attn_weights (bool or set): Makes forward prop dump
+                self-attention softmaxes to self.prior.transformer.ws. Either a
+                set of layer indices indicating which layers to store, or a
+                boolean value indicating whether to dump all.
+        """
+        assert isinstance(get_attn_weights, (bool, set))
+        if get_attn_weights:
+            self.prior.transformer.set_record_attn(get_attn_weights)
+        x_cond, y_cond, prime = self.get_cond(z_conds, y)
+        if self.copy_input:
+            prime = z[:,:self.n_tokens]
+        if self.single_enc_dec: # True for the top level prior
+            z, x_cond = self.prior_preprocess([prime, z], [None, x_cond])
+
+            # Account for the left-concatted cond
+            sep_mask = t.cat((t.zeros_like(prime), sep_mask), dim=1)
+            pad_mask = t.cat((t.zeros_like(prime), pad_mask), dim=1)
+            pred_mask = t.cat((t.zeros_like(prime), pred_mask), dim=1)
+
+            z_pred, z_true = self.prior.finetune_sample(z, pred_mask, sep_mask, pad_mask, x_cond, y_cond, fp16=fp16, get_sep_loss=True, get_preds=get_preds)
+            
+            # Account for bins_shift
+            z_pred = z_pred - self.prior_bins_shift[1]
+            z_true = z_true - self.prior_bins_shift[1]
+
+            return z_pred, z_true

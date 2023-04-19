@@ -26,6 +26,11 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 
 def finetune(args):
+    if args.debug:
+        args.batch_size = 1
+        args.eval = True
+        args.checkpoint = './logs/unnamed/checkpoint_latest.pth.tar'
+
     print(args)
 
     # Set up devices
@@ -47,6 +52,8 @@ def finetune(args):
         'weight_decay': 0.01,
         'save_iters': 1000
     }
+    if args.checkpoint != '':
+        kwargs['restore_prior'] = args.checkpoint
     hps = setup_hparams('vqvae,prior_1b_lyrics,all_fp16,cpu_ema', kwargs)
     hps.ngpus = dist.get_world_size()
     hps.argv = " ".join(sys.argv)
@@ -69,7 +76,11 @@ def finetune(args):
     
     # Make datasets
     train_loader = dataset.build_z2z_loader(uglobals.MUSDB18_TRAIN_VOCALS_Z_DIR, uglobals.MUSDB18_TRAIN_ACC_Z_DIR, hps.bs)
-    test_loader = dataset.build_z2z_loader(uglobals.MUSDB18_TEST_VOCALS_Z_DIR, uglobals.MUSDB18_TEST_ACC_Z_DIR, hps.bs)
+    test_loader = dataset.build_z2z_loader(uglobals.MUSDB18_TEST_VOCALS_Z_DIR, uglobals.MUSDB18_TEST_ACC_Z_DIR, 1, random_offset=False, shuffle=False)
+
+    if args.eval:
+        eval(model, test_loader, hps)
+        return
 
     # Train
     for epoch in range(hps.curr_epoch, hps.epochs):
@@ -104,6 +115,7 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
         _print_keys = dict(l="loss", sl="spectral_loss", rl="recons_loss", e="entropy", u="usage", uc="used_curr", gn="gn", pn="pn", dk="dk")
 
     for i, batch in logger.get_range(loader):
+        
         # Unpack batch
         z = batch['z'].to('cuda', non_blocking=True).long()
         pred_mask = batch['pred_mask'].to('cuda', non_blocking=True)
@@ -129,16 +141,12 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
         else:
             forw_kwargs = dict(loss_fn=hps.loss_fn, hps=hps)
             
-        try:
-            # Forward
-            x_out, loss, _metrics = orig_model.finetune_forward(z, pred_mask, sep_mask, pad_mask, **forw_kwargs)
+        # Forward
+        x_out, loss, _metrics = orig_model.finetune_forward(z, pred_mask, sep_mask, pad_mask, **forw_kwargs)
 
-            # Backward
-            loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=list(model.parameters()),
-                                                                         scalar=scalar, fp16=hps.fp16, logger=logger)
-        except:
-            print('Exception in forward')
-            continue
+        # Backward
+        loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=list(model.parameters()),
+                                                                        scalar=scalar, fp16=hps.fp16, logger=logger)
 
         # Skip step if overflow
         grad_norm = allreduce(grad_norm, op=dist.ReduceOp.MAX)
@@ -190,6 +198,58 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
     logger.close_range()
     return {key: metrics.avg(key) for key in _metrics.keys()}
 
+def eval(model, loader, hps):
+    model.eval()
+
+    save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    n_pred, n_hit = 0, 0
+
+    for batch_idx, batch in enumerate(loader):
+        # bs is always 1
+        # Unpack batch
+        z = batch['z'].to('cuda', non_blocking=True).long()
+        pred_mask = batch['pred_mask'].to('cuda', non_blocking=True)
+        sep_mask = batch['sep_mask'].to('cuda', non_blocking=True)
+        pad_mask = batch['pad_mask'].to('cuda', non_blocking=True)
+        song_name = batch['song_name']
+        start = batch['start']
+        total = batch['total']
+
+        # Build y with default artist/style/lyrics conditions
+        raw_to_tokens = model.raw_to_tokens
+        for i in range(z.shape[0]):
+            label = model.labeller.get_label('unknown', 'unknown', '', total[i]*raw_to_tokens, start[i]*raw_to_tokens) # duration (sr), offset within song  
+            if i == 0:
+                y = torch.tensor(label['y']).reshape(1, -1).to('cuda', non_blocking=True)
+            else:
+                y = torch.cat((y, torch.tensor(label['y']).reshape(1, -1).to('cuda', non_blocking=True)), dim=0)
+
+        if hps.prior:
+            forw_kwargs = dict(y=y, fp16=hps.fp16)
+        else:
+            forw_kwargs = dict(loss_fn=hps.loss_fn, hps=hps)
+
+        # Sample z sequence
+        z_pred, z_true = model.finetune_sample_z(z, pred_mask, sep_mask, pad_mask, **forw_kwargs)
+        
+        # Calculate accuracy
+        n_pred += z_pred.shape[1]
+        n_hit += torch.sum(z_pred == z_true).int()
+
+        # Save z
+        save_path = f'{save_dir}/{song_name}_{start}_{total}.pt'
+        torch.save({
+            'z_pred': z_pred,
+            'z_true': z_true,
+        }, save_path)
+
+    # Evaluate acc
+    print(f'Overall accuracy: {n_pred / n_hit}, n_pred: {n_pred}, n_hit: {n_hit}')
+    return
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -197,12 +257,16 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true')
 
     parser.add_argument('--name', default='unnamed', type=str) 
+    parser.add_argument('--checkpoint', default='', type=str) 
 
     # Training
-    parser.add_argument('--batch_size', default='1', type=int) 
+    parser.add_argument('--batch_size', default='1', type=int)
+
+    # Eval
+    parser.add_argument('--eval', action='store_true')
 
     args = parser.parse_args()
 
-    # --restore_prior="path/to/checkpoint" --lr_use_linear_decay --lr_start_linear_decay={already_trained_steps} --lr_decay={decay_steps_as_needed}
+    #  --lr_use_linear_decay --lr_start_linear_decay={already_trained_steps} --lr_decay={decay_steps_as_needed}
 
     finetune(args)

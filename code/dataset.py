@@ -7,12 +7,13 @@ from torch.utils.data import Dataset, DataLoader
 import utils.globals as uglobals
 
 class Z2ZDataset(Dataset):
-    def __init__(self, src_dir, tar_dir, window_len=3071, z_len=6144):
+    def __init__(self, src_dir, tar_dir, random_offset, window_len=3071, z_len=6144):
 
         self.src_dir = src_dir
         self.tar_dir = tar_dir
         self.window_len = window_len # For each src/tar slice
         self.z_len = z_len # For model input
+        self.random_offset = random_offset
 
         self.sep = torch.zeros(1, 1) # Placeholders, will be replaced by learned tokens
         self.pad = torch.zeros(1, 1)
@@ -63,7 +64,10 @@ class Z2ZDataset(Dataset):
         out = [] # [{z, pred_mask, sep_mask, pad_mask, song_name, start, total}, ...] [1, seq_len]
         for song_name, [src, tar] in self.pairs.items():
 
-            start = random.randint(0, self.window_len - 1)
+            if self.random_offset:
+                start = 0
+            else:
+                start = random.randint(0, self.window_len - 1)
             while start < src.shape[1]:
                 src_slice = src[:, start: start + self.window_len]
                 tar_slice = tar[:, start: start + self.window_len]
@@ -130,15 +134,16 @@ def mr_collate(data):
     }
         
                 
-def build_z2z_loader(src_dir, tar_dir, batch_size, shuffle=True):
-    dataset = Z2ZDataset(src_dir, tar_dir)
+def build_z2z_loader(src_dir, tar_dir, batch_size, shuffle=True, random_offset=True):
+    dataset = Z2ZDataset(src_dir, tar_dir, random_offset)
     loader = DataLoader(dataset, batch_size=batch_size, collate_fn=mr_collate, shuffle=shuffle)
     print(f'Dataset {src_dir} - {tar_dir}')
     print(f'Size {len(dataset)}')
     return loader
     
 if __name__ == '__main__':
-    loader = build_z2z_loader(uglobals.MUSDB18_TRAIN_VOCALS_Z_DIR, uglobals.MUSDB18_TRAIN_ACC_Z_DIR, 3)
+    loader = build_z2z_loader(uglobals.MUSDB18_TEST_VOCALS_Z_DIR, uglobals.MUSDB18_TEST_ACC_Z_DIR, 1, random_offset=False, shuffle=False)
     for batch in loader:
-        print(batch)
+        print(batch['z'][0, :10])
+        print(batch['z'][0, -10:])
         exit()

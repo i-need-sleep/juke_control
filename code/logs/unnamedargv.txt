@@ -1,1 +1,1 @@
-finetune.py
+finetune.py --debug
