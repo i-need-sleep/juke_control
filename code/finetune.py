@@ -29,8 +29,8 @@ torch.manual_seed(21)
 def finetune(args):
     if args.debug:
         args.batch_size = 1
-        args.eval = True
-        args.checkpoint = './logs/unnamed/checkpoint_latest.pth.tar'
+        # args.eval = True
+        # args.checkpoint = './logs/unnamed/checkpoint_latest.pth.tar'
 
     print(args)
 
@@ -88,7 +88,7 @@ def finetune(args):
         metrics.reset()
         train_loader.dataset.slice_data()
         if hps.train:
-            train_metrics = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps)
+            train_metrics = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
             train_metrics['epoch'] = epoch
             if rank == 0:
                 print('Train',' '.join([f'{key}: {val:0.4f}' for key,val in train_metrics.items()]))
@@ -107,7 +107,7 @@ def finetune(args):
     
     return
 
-def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps):
+def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps, args):
     model.train()
     orig_model.train()
     if hps.prior:
@@ -115,7 +115,9 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
     else:
         _print_keys = dict(l="loss", sl="spectral_loss", rl="recons_loss", e="entropy", u="usage", uc="used_curr", gn="gn", pn="pn", dk="dk")
 
-    for i, batch in logger.get_range(loader):
+    for batch_idx, batch in logger.get_range(loader):
+        if args.debug and batch_idx < 1090:
+            continue
         
         # Unpack batch
         z = batch['z'].to('cuda', non_blocking=True).long()
