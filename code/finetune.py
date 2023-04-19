@@ -139,7 +139,7 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
         except:
             print('Exception in forward')
             continue
-        
+
         # Skip step if overflow
         grad_norm = allreduce(grad_norm, op=dist.ReduceOp.MAX)
         if overflow_loss or overflow_grad or grad_norm > hps.ignore_grad_norm > 0:
@@ -177,6 +177,7 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
                 orig_model.eval()
                 name = 'latest' if hps.prior else f'step_{logger.iters}'
                 if dist.get_rank() % 8 == 0:
+                    print('Saving')
                     save_checkpoint(logger, name, orig_model, opt, dict(step=logger.iters), hps)
                 orig_model.train()
                 if ema is not None: ema.swap()
