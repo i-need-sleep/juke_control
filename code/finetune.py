@@ -22,6 +22,9 @@ from jukebox.train import log_aud, log_labels
 import dataset
 import utils.globals as uglobals
 
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
+
 def finetune(args):
     print(args)
 
