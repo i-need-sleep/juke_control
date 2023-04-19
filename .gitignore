@@ -28,7 +28,8 @@ data/*/*
 *.zip
 
 # Logs
-./code/logs
+code/logs/*
+*.MSI
 
 # Models
 *.pt

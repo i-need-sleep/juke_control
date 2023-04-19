@@ -133,8 +133,13 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
         x_out, loss, _metrics = orig_model.finetune_forward(z, pred_mask, sep_mask, pad_mask, **forw_kwargs)
 
         # Backward
-        loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=list(model.parameters()),
+        try:
+            loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=list(model.parameters()),
                                                                          scalar=scalar, fp16=hps.fp16, logger=logger)
+        except:
+            print('Exception in forward')
+            continue
+        
         # Skip step if overflow
         grad_norm = allreduce(grad_norm, op=dist.ReduceOp.MAX)
         if overflow_loss or overflow_grad or grad_norm > hps.ignore_grad_norm > 0:
