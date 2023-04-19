@@ -23,6 +23,7 @@ import dataset
 import utils.globals as uglobals
 
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+torch.manual_seed(21) 
 
 
 def finetune(args):

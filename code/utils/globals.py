@@ -6,7 +6,7 @@ DEBUG_STEM_PATH = f'{MUSDB18_PATH}/train/A Classic Education - NightOwl.stem.mp4
 DEBUG_VOCAL_PATH = f'{MUSDB18_PATH}/debug/A Classic Education - NightOwl_vocals.wav'
 DEBUG_ACC_PATH = f'{MUSDB18_PATH}/debug/A Classic Education - NightOwl_acc.wav'
 
-DEBUG_VOCAL_Z_PATH = f'{MUSDB18_PATH}/debug/debug_vocals.pt'
+DEBUG_VOCAL_Z_PATH = f'{MUSDB18_PATH}/debug/debug_z_vocals.pt'
 DEBUG_ACC_Z_PATH = f'{MUSDB18_PATH}/debug/debug_z_acc.pt'
 
 # Output

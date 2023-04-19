@@ -121,13 +121,15 @@ class RangeEmbedding(nn.Module):
         bins = (self.bins * normalised_position).floor().long().detach() # [0,1) -> [0,1..,bins) -> [0,1...,bins-1]
         
         # Dirty fix:
-        bins[bins > self.emb.num_embeddings] = self.emb.num_embeddings-1
+        bins[bins > self.emb.num_embeddings] = 1
+        bins[bins < 0] = 1
         bins = bins.long()
         try:
             return self.emb(bins)
         except:
-            print(bins)
-            raise
+            print('emb exception')
+            return t.zeros(pos_start.shape[0], pos_start.shape[1], 2048)
+
 
 class LabelConditioner(nn.Module):
     def __init__(self, y_bins, t_bins, sr, min_duration, max_duration, n_time, out_width, init_scale, max_bow_genre_size, include_time_signal):
