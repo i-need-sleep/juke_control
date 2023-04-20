@@ -63,7 +63,11 @@ def restore_model(hps, model, checkpoint_path):
         #     if checkpoint_hps.get(k, None) != hps.get(k, None):
         #         print(k, "Checkpoint:", checkpoint_hps.get(k, None), "Ours:", hps.get(k, None))
         checkpoint['model'] = {k[7:] if k[:7] == 'module.' else k: v for k, v in checkpoint['model'].items()}
-        model.load_state_dict(checkpoint['model'], strict=False)
+        try:
+            strict = hps.strict
+        except:
+            strict = True
+        model.load_state_dict(checkpoint['model'], strict=strict)
         if 'step' in checkpoint: model.step = checkpoint['step']
 
 def restore_opt(opt, shd, checkpoint_path):
@@ -98,6 +102,7 @@ def make_vqvae(hps, device='cuda'):
 
     vqvae = vqvae.to(device)
     restore_model(hps, vqvae, hps.restore_vqvae)
+
     if hps.train and not hps.prior:
         print_all(f"Loading vqvae in train mode")
         if hps.restore_vqvae != '':
@@ -193,12 +198,19 @@ def make_prior(hps, vqvae, device='cuda'):
 
 def make_model(model, device, hps, levels=None):
     vqvae, *priors = MODELS[model]
-    vqvae = make_vqvae(setup_hparams(vqvae, dict(sample_length=hps.get('sample_length', 0), sample_length_in_seconds=hps.get('sample_length_in_seconds', 0))), device)
+    load_vqvae_hps = setup_hparams(vqvae, dict(sample_length=hps.get('sample_length', 0), sample_length_in_seconds=hps.get('sample_length_in_seconds', 0)))
+    load_vqvae_hps.strict = hps.strict
+    vqvae = make_vqvae(load_vqvae_hps, device)
     hps.sample_length = vqvae.sample_length
     if levels is None:
         levels = range(len(priors))
-    priors = [make_prior(setup_hparams(priors[level], dict()), vqvae, 'cpu') for level in levels]
-    return vqvae, priors
+    priors_out = []
+    for level in levels:
+        load_prior_hps = setup_hparams(priors[level], dict())
+        load_prior_hps.strict = hps.strict
+        prior = make_prior(load_prior_hps, vqvae, 'cpu')
+        priors_out.append(prior)
+    return vqvae, priors_out
 
 def save_outputs(model, device, hps):
     # Check logits

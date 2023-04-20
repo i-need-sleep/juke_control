@@ -2,6 +2,7 @@ import numpy as np
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as F
+from tqdm import tqdm
 
 from jukebox.transformer.ops import filter_logits
 from jukebox.transformer.transformer import Transformer
@@ -415,12 +416,7 @@ class ConditionalAutoregressive2D(nn.Module):
             x_cond = t.zeros((N, 1, self.width), device=x.device, dtype=t.float)
 
         x_t = x # Target
-        try:
-            x = self.x_emb(x) # X emb
-        except:
-            print(x)
-            print(t.max(x))
-            raise
+        x = self.x_emb(x) # X emb
         x = roll(x, 1) # Shift by 1
 
         # Also shift the masks
@@ -468,7 +464,6 @@ class ConditionalAutoregressive2D(nn.Module):
         
     def finetune_sample(self, x, pred_mask, sep_mask, pad_mask, x_cond=None, y_cond=None, encoder_kv=None, fp16=False, loss_full=False,
                 encode=False, get_preds=False, get_acts=False, get_sep_loss=False):
-        
         with t.no_grad():
             # Pprocess
             with t.no_grad():
@@ -508,8 +503,7 @@ class ConditionalAutoregressive2D(nn.Module):
                     break
                 
             # Autoregressive sampling
-            for i in range(t.sum(pred_mask).int()):
-                print(i)
+            for i in tqdm(range(t.sum(pred_mask).int())):
                 pred_idx =  start_idx + i
 
                 # Remove the pad mask at the current token
@@ -528,13 +522,25 @@ class ConditionalAutoregressive2D(nn.Module):
                 else:
                     emb[:,0] = self.start_token
 
-                emb = emb + self.pos_emb() + x_cond # Pos emb
+                emb = self.x_emb_dropout(emb) + self.pos_emb_dropout(self.pos_emb()) + x_cond # Pos emb and dropout
 
-                pred = self.transformer(emb, encoder_kv=encoder_kv, fp16=fp16) # Transformer
-                
-                # Argmax samping
+                emb = self.transformer(emb, encoder_kv=encoder_kv, fp16=fp16) # Transformer
+                if self.add_cond_after_transformer: # Piped doesnt add x_cond
+                    emb = emb + x_cond
+
+                pred = self.x_out(emb) # Predictions
+
                 pred = pred[0, pred_idx, :] 
+                # Argmax samping
                 pred = t.argmax(pred)
+
+                # Sample by softmax
+                # pred = t.nn.Softmax(dim=0)(pred).tolist()
+                # pred = np.random.choice(a=[i for i in range(len(pred))], p=pred)
+                
+                if i < 100:
+                    print(pred)
+                    print(x_t[0, pred_idx])
                 
                 # Update the input sequence
                 if i == x.shape[1] - 1:

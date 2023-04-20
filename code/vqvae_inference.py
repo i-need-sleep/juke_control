@@ -1,7 +1,9 @@
 import os
 import argparse
+import math
 
 import torch
+import numpy as np
 from scipy.io import wavfile
 from tqdm import tqdm
 
@@ -16,7 +18,7 @@ import utils.globals as uglobals
 MODEL = '1b_lyrics'
 STEP_SIZE = 45000
 
-def run_vqvaes(dir, out_dir):
+def enc_dec(dir, out_dir):
     # Set up devices
     rank, local_rank, device = setup_dist_from_mpi(port=29500)
 
@@ -30,6 +32,7 @@ def run_vqvaes(dir, out_dir):
         n_samples = 1,
         hop_fraction = [0.5, 0.5, 0.125]
     )
+    hps.strict = False
 
     # Load the models
     vqvae, priors = make_model(MODEL, device, hps)
@@ -70,12 +73,85 @@ def run_vqvaes(dir, out_dir):
                     os.makedirs(f'{save_name_recons}_{2-prior_lv}')
                 save_wav(f'{save_name_recons}_{2-prior_lv}', x_recons, hps.sr)
 
+def dec(pred_dir, src_dir, out_dir):
+    # Set up devices
+    rank, local_rank, device = setup_dist_from_mpi(port=29500)
+
+    # Set up model hps for inference
+    hps = Hyperparams(
+        name = 'sample_1b',
+        levels = 3,
+        sample_length_in_seconds = 20,
+        total_sample_length_in_seconds = 180,
+        sr = 44100,
+        n_samples = 1,
+        hop_fraction = [0.5, 0.5, 0.125]
+    )
+    hps.strict = False
+
+    # Load the models
+    vqvae, priors = make_model(MODEL, device, hps)
+    prior = priors[-1] # Top level prior
+
+    for file_name in os.listdir(pred_dir):
+        save_dir = f'{out_dir}/{file_name[:-3]}'
+        if not os.path.exists(save_dir):    
+            os.makedirs(save_dir)
+
+        path = f'{pred_dir}/{file_name}'
+        
+        # Decode the prediction and oracle
+        data = torch.load(path)
+        z_pred = data['z_pred']
+        z_true = data['z_true']
+        
+        x_pred = prior.decode([z_pred], bs_chunks=z_pred.shape[0])
+        x_true = prior.decode([z_true], bs_chunks=z_pred.shape[0])
+
+        if not os.path.exists(f'{save_dir}/pred'):    
+            os.makedirs(f'{save_dir}/pred')
+        if not os.path.exists(f'{save_dir}/oracle'):    
+            os.makedirs(f'{save_dir}/oracle')
+        save_wav(f'{save_dir}/pred', x_pred, hps.sr)
+        save_wav(f'{save_dir}/oracle', x_true, hps.sr)
+
+        # Retrieve the original vocal wav
+        song_name, start, total = file_name[:-3].split('_')
+        wav_root = f'{src_dir}/{song_name}'
+
+        # Retrieve all pieces
+        i = 0
+        while True:
+            wav_path = f'{wav_root}_{i}.wav'
+            if not os.path.isfile(wav_path):
+                break
+            sr, data = wavfile.read(wav_path)
+            data = data.reshape(1, -1)
+            if i == 0:
+                src_wav = data
+            else:
+                src_wav = np.concatenate((src_wav, data), axis=1)
+            i += 1
+
+        # Align the right slice
+        start_idx = int(math.floor(src_wav.shape[1] / int(total) * int(start)))
+
+        src_slice = src_wav[:, start_idx: start_idx + x_pred.shape[1]]
+        src_slice = torch.tensor(src_slice).reshape(1, -1, 1).cuda() / 20000 # TODO: Check the scale 
+
+        mix_pred = src_slice + x_pred
+        mix_oracle = src_slice + x_true
+        
+        # Save
+        if not os.path.exists(f'{save_dir}/mix_pred'):    
+            os.makedirs(f'{save_dir}/mix_pred')
+        if not os.path.exists(f'{save_dir}/mix_oracle'):    
+            os.makedirs(f'{save_dir}/mix_oracle')
+        save_wav(f'{save_dir}/mix_pred', mix_pred, hps.sr)
+        save_wav(f'{save_dir}/mix_oracle', mix_oracle, hps.sr)
+
+    return
+
 if __name__ == '__main__':
-    # try:
-    #     run_vqvaes(f'{uglobals.MUSDB18_PATH}/debug', f'{uglobals.MUSDB18_ORACLE}/debug')
-    # except:
-    #     pass
-    # run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
-    # run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/acc')
-    # run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals')
-    run_vqvaes(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/accompaniment', f'{uglobals.MUSDB18_ORACLE}/test/acc')
+    name = 'latest'
+    dec(f'{uglobals.MUSDB18_Z_OUT}/{name}', f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals',f'{uglobals.MUSDB18_WAV_OUT}/{name}')

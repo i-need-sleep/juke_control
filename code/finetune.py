@@ -28,9 +28,10 @@ torch.manual_seed(21)
 
 def finetune(args):
     if args.debug:
+        args.name = 'latest_train'
         args.batch_size = 1
-        # args.eval = True
-        # args.checkpoint = './logs/unnamed/checkpoint_latest.pth.tar'
+        args.eval = True
+        args.checkpoint = '../results/checkpoints/apr20/checkpoint_latest.pth.tar'
 
     print(args)
 
@@ -51,11 +52,12 @@ def finetune(args):
         'levels': 3,
         'level': 2,
         'weight_decay': 0.01,
-        'save_iters': 1000
+        'save_iters': 1000,
     }
     if args.checkpoint != '':
         kwargs['restore_prior'] = args.checkpoint
     hps = setup_hparams('vqvae,prior_1b_lyrics,all_fp16,cpu_ema', kwargs)
+    hps.strict = not args.eval # Allow adding new params for ft
     hps.ngpus = dist.get_world_size()
     hps.argv = " ".join(sys.argv)
     hps.bs_sample = hps.nworkers = hps.bs
@@ -71,17 +73,19 @@ def finetune(args):
     opt, shd, scalar = get_optimizer(model, hps)
     ema = get_ema(model, hps)
     distributed_model = get_ddp(model, hps)
-
-    logger, metrics = init_logging(hps, local_rank, rank)
-    logger.iters = model.step
     
     # Make datasets
     train_loader = dataset.build_z2z_loader(uglobals.MUSDB18_TRAIN_VOCALS_Z_DIR, uglobals.MUSDB18_TRAIN_ACC_Z_DIR, hps.bs)
     test_loader = dataset.build_z2z_loader(uglobals.MUSDB18_TEST_VOCALS_Z_DIR, uglobals.MUSDB18_TEST_ACC_Z_DIR, 1, random_offset=False, shuffle=False)
 
     if args.eval:
-        eval(model, test_loader, hps)
+        # eval(model, test_loader, hps, args)
+        eval(model, train_loader, hps, args)
         return
+    
+    # Loggers
+    logger, metrics = init_logging(hps, local_rank, rank)
+    logger.iters = model.step
 
     # Train
     for epoch in range(hps.curr_epoch, hps.epochs):
@@ -186,7 +190,7 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
             if hps.save and (logger.iters % hps.save_iters == 1 or finished_training):
                 if ema is not None: ema.swap()
                 orig_model.eval()
-                name = 'latest' if hps.prior else f'step_{logger.iters}'
+                name = f'step_{logger.iters}'
                 if dist.get_rank() % 8 == 0:
                     print('Saving')
                     save_checkpoint(logger, name, orig_model, opt, dict(step=logger.iters), hps)
@@ -201,7 +205,7 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
     logger.close_range()
     return {key: metrics.avg(key) for key in _metrics.keys()}
 
-def eval(model, loader, hps):
+def eval(model, loader, hps, args):
     model.eval()
 
     save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
@@ -211,6 +215,9 @@ def eval(model, loader, hps):
     n_pred, n_hit = 0, 0
 
     for batch_idx, batch in enumerate(loader):
+        if args.debug:
+            if batch_idx not in [201, 501]:
+                continue
         # bs is always 1
         # Unpack batch
         z = batch['z'].to('cuda', non_blocking=True).long()
@@ -243,14 +250,14 @@ def eval(model, loader, hps):
         n_hit += torch.sum(z_pred == z_true).int()
 
         # Save z
-        save_path = f'{save_dir}/{song_name}_{start}_{total}.pt'
+        save_path = f'{save_dir}/{song_name[0]}_{start[0]}_{total[0]}.pt'
         torch.save({
             'z_pred': z_pred,
             'z_true': z_true,
         }, save_path)
 
     # Evaluate acc
-    print(f'Overall accuracy: {n_pred / n_hit}, n_pred: {n_pred}, n_hit: {n_hit}')
+    print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
     return
 
 if __name__ == '__main__':

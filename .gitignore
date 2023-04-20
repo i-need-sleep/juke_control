@@ -1,6 +1,7 @@
 # Misc
 *.pyc
 */debug.py
+*/debug.ipynb
 */tutorial.py
 
 # Data
@@ -30,6 +31,7 @@ data/*/*
 # Logs
 code/logs/*
 *.MSI
+*.gpu*
 
 # Models
 *.pt
