@@ -64,10 +64,10 @@ def restore_model(hps, model, checkpoint_path):
         #         print(k, "Checkpoint:", checkpoint_hps.get(k, None), "Ours:", hps.get(k, None))
         checkpoint['model'] = {k[7:] if k[:7] == 'module.' else k: v for k, v in checkpoint['model'].items()}
         try:
-            strict = hps.strict
+            model.load_state_dict(checkpoint['model'], strict=True)
         except:
-            strict = True
-        model.load_state_dict(checkpoint['model'], strict=strict)
+            print('Load model: Not strict')
+            model.load_state_dict(checkpoint['model'], strict=False)
         if 'step' in checkpoint: model.step = checkpoint['step']
 
 def restore_opt(opt, shd, checkpoint_path):
