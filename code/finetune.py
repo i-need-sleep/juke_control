@@ -53,9 +53,14 @@ def finetune(args):
         'level': 2,
         'weight_decay': 0.01,
         'save_iters': 1000,
+        'lr': args.lr
     }
     if args.checkpoint != '':
         kwargs['restore_prior'] = args.checkpoint
+    if args.lr_start_linear_decay != -1:
+        kwargs['lr_start_linear_decay'] = args.lr_start_linear_decay
+    if args.lr_decay != -1:
+        kwargs['lr_decay'] = args.lr_decay
     hps = setup_hparams('vqvae,prior_1b_lyrics,all_fp16,cpu_ema', kwargs)
     hps.strict = not args.eval # Allow adding new params for ft
     hps.ngpus = dist.get_world_size()
@@ -271,6 +276,9 @@ if __name__ == '__main__':
 
     # Training
     parser.add_argument('--batch_size', default='1', type=int)
+    parser.add_argument('--lr', default=3e-4, type=float)
+    parser.add_argument('--lr_start_linear_decay', default=-1, type=int) # already_trained_steps
+    parser.add_argument('--lr_decay', default=-1, type=int) # decay_steps_as_needed
 
     # Eval
     parser.add_argument('--eval', action='store_true')
