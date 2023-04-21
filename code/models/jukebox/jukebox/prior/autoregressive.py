@@ -530,13 +530,13 @@ class ConditionalAutoregressive2D(nn.Module):
 
                 pred = self.x_out(emb) # Predictions
 
-                pred = pred[0, pred_idx, :] 
+                pred = pred[:, pred_idx, :] 
                 # Argmax samping
-                pred = t.argmax(pred)
+                # pred = t.argmax(pred[0])
 
                 # Sample by softmax
-                # pred = t.nn.Softmax(dim=0)(pred).tolist()
-                # pred = np.random.choice(a=[i for i in range(len(pred))], p=pred)
+                pred = t.nn.Softmax(dim=1)(pred)[0]
+                pred = t.multinomial(pred, 1)[0]
                 
                 if i < 100:
                     print(pred)

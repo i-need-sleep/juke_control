@@ -16,7 +16,6 @@ import utils.globals as uglobals
 
 # Globals
 MODEL = '1b_lyrics'
-STEP_SIZE = 45000
 
 def enc_dec(dir, out_dir):
     # Set up devices
@@ -153,5 +152,6 @@ def dec(pred_dir, src_dir, out_dir):
     return
 
 if __name__ == '__main__':
-    name = 'latest'
+    # enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/mix', f'{uglobals.MUSDB18_ORACLE}/train/mix')
+    name = '9001'
     dec(f'{uglobals.MUSDB18_Z_OUT}/{name}', f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals',f'{uglobals.MUSDB18_WAV_OUT}/{name}')

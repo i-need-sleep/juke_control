@@ -28,10 +28,14 @@ torch.manual_seed(21)
 
 def finetune(args):
     if args.debug:
-        args.name = 'latest_train'
+        args.name = '9001'
+        args.checkpoint = f'../results/checkpoints/apr21/checkpoint_step_{args.name}.pth.tar'
         args.batch_size = 1
         args.eval = True
-        args.checkpoint = '../results/checkpoints/apr20/checkpoint_latest.pth.tar'
+
+        # args.eval_on_train = True
+        if args.eval_on_train:
+            args.name += '_train'
 
     print(args)
 
@@ -79,8 +83,10 @@ def finetune(args):
     test_loader = dataset.build_z2z_loader(uglobals.MUSDB18_TEST_VOCALS_Z_DIR, uglobals.MUSDB18_TEST_ACC_Z_DIR, 1, random_offset=False, shuffle=False)
 
     if args.eval:
-        # eval(model, test_loader, hps, args)
-        eval(model, train_loader, hps, args)
+        if args.eval_on_train:
+            eval(model, train_loader, hps, args)
+        else:
+            eval(model, test_loader, hps, args)
         return
     
     # Loggers
@@ -267,13 +273,18 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true')
 
     parser.add_argument('--name', default='unnamed', type=str) 
-    parser.add_argument('--checkpoint', default='', type=str) 
+    parser.add_argument('--checkpoint', default='', type=str)
+
+    # Task
+    parser.add_argument('--src', default='vocals', type=str) 
+    parser.add_argument('--tar', default='acc', type=str) 
 
     # Training
     parser.add_argument('--batch_size', default='1', type=int)
 
     # Eval
     parser.add_argument('--eval', action='store_true')
+    parser.add_argument('--eval_on_train', action='store_true')
 
     args = parser.parse_args()
 
