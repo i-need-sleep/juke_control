@@ -22,4 +22,4 @@ MUSDB18_Z_OUT = f'{OUT_PATH}/musdb18/z_out'
 MUSDB18_WAV_OUT = f'{OUT_PATH}/musdb18/wav_out'
 
 # Checkpoints
-CHECKPOINT_PATH = f'../results/checkpoints'
+CHECKPOINT_DIR = f'../results/checkpoints'

@@ -48,6 +48,7 @@ def finetune(args, dist_setup=None):
     # Set up hyperparameters
     kwargs = {
         'name': args.name,
+        'local_logdir': uglobals.CHECKPOINT_PATH,
         'sample_length': 1048576,
         'bs': args.batch_size,
         'aug_shift': True,
