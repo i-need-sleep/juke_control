@@ -17,9 +17,12 @@ import utils.globals as uglobals
 # Globals
 MODEL = '1b_lyrics'
 
-def enc_dec(dir, out_dir):
+def enc_dec(dir, out_dir, dist_setup=None):
     # Set up devices
-    rank, local_rank, device = setup_dist_from_mpi(port=29500)
+    if dist_setup == None:
+        rank, local_rank, device = setup_dist_from_mpi(port=29500)
+    else:
+        rank, local_rank, device = dist_setup
 
     # Set up model hps for inference
     hps = Hyperparams(
@@ -72,9 +75,12 @@ def enc_dec(dir, out_dir):
                     os.makedirs(f'{save_name_recons}_{2-prior_lv}')
                 save_wav(f'{save_name_recons}_{2-prior_lv}', x_recons, hps.sr)
 
-def dec(pred_dir, src_dir, out_dir):
+def dec(pred_dir, src_dir, out_dir, dist_setup=None):
     # Set up devices
-    rank, local_rank, device = setup_dist_from_mpi(port=29500)
+    if dist_setup == None:
+        rank, local_rank, device = setup_dist_from_mpi(port=29500)
+    else:
+        rank, local_rank, device = dist_setup
 
     # Set up model hps for inference
     hps = Hyperparams(
@@ -152,6 +158,36 @@ def dec(pred_dir, src_dir, out_dir):
     return
 
 if __name__ == '__main__':
-    # enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/mix', f'{uglobals.MUSDB18_ORACLE}/train/mix')
-    name = '9001'
-    dec(f'{uglobals.MUSDB18_Z_OUT}/{name}', f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals',f'{uglobals.MUSDB18_WAV_OUT}/{name}')
+    rank, local_rank, device = setup_dist_from_mpi(port=29500)
+
+    # Set up model hps for inference
+    hps = Hyperparams(
+        name = 'sample_1b',
+        levels = 3,
+        sample_length_in_seconds = 20,
+        total_sample_length_in_seconds = 180,
+        sr = 44100,
+        n_samples = 1,
+        hop_fraction = [0.5, 0.5, 0.125]
+    )
+    hps.strict = False
+
+    # Load the models
+    vqvae, priors = make_model(MODEL, device, hps)
+    print(11111111)
+
+    # Set up model hps for inference
+    hps = Hyperparams(
+        name = 'sample_1b',
+        levels = 3,
+        sample_length_in_seconds = 20,
+        total_sample_length_in_seconds = 180,
+        sr = 44100,
+        n_samples = 1,
+        hop_fraction = [0.5, 0.5, 0.125]
+    )
+    hps.strict = False
+
+    # Load the models
+    vqvae, priors = make_model(MODEL, device, hps)
+    print(222222222)

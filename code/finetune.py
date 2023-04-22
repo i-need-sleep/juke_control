@@ -26,9 +26,9 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 torch.manual_seed(21) 
 
 
-def finetune(args):
+def finetune(args, dist_setup=None):
     if args.debug:
-        args.name = '9001'
+        args.name = '11001'
         args.checkpoint = f'../results/checkpoints/apr21/checkpoint_step_{args.name}.pth.tar'
         args.batch_size = 1
         args.eval = True
@@ -40,7 +40,10 @@ def finetune(args):
     print(args)
 
     # Set up devices
-    rank, local_rank, device = setup_dist_from_mpi(port=29500)
+    if dist_setup == None:
+        rank, local_rank, device = setup_dist_from_mpi(port=29500)
+    else:
+        rank, local_rank, device = dist_setup
 
     # Set up hyperparameters
     kwargs = {
@@ -89,10 +92,10 @@ def finetune(args):
 
     if args.eval:
         if args.eval_on_train:
-            eval(model, train_loader, hps, args)
+            save_dir = eval(model, train_loader, hps, args)
         else:
-            eval(model, test_loader, hps, args)
-        return
+            save_dir = eval(model, test_loader, hps, args)
+        return save_dir
     
     # Loggers
     logger, metrics = init_logging(hps, local_rank, rank)
@@ -227,7 +230,7 @@ def eval(model, loader, hps, args):
 
     for batch_idx, batch in enumerate(loader):
         if args.debug:
-            if batch_idx not in [201, 501]:
+            if batch_idx not in [201, 501, 2101]:
                 continue
         # bs is always 1
         # Unpack batch
@@ -269,7 +272,7 @@ def eval(model, loader, hps, args):
 
     # Evaluate acc
     print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
-    return
+    return save_dir
 
 if __name__ == '__main__':
 
@@ -295,7 +298,5 @@ if __name__ == '__main__':
     parser.add_argument('--eval_on_train', action='store_true')
 
     args = parser.parse_args()
-
-    #  --lr_use_linear_decay --lr_start_linear_decay={already_trained_steps} --lr_decay={decay_steps_as_needed}
 
     finetune(args)

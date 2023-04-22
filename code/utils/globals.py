@@ -20,3 +20,6 @@ MUSDB18_TEST_VOCALS_Z_DIR = f'{MUSDB18_ORACLE}/test/vocals/z'
 MUSDB18_TEST_ACC_Z_DIR = f'{MUSDB18_ORACLE}/test/acc/z'
 MUSDB18_Z_OUT = f'{OUT_PATH}/musdb18/z_out'
 MUSDB18_WAV_OUT = f'{OUT_PATH}/musdb18/wav_out'
+
+# Checkpoints
+CHECKPOINT_PATH = f'../results/checkpoints'
