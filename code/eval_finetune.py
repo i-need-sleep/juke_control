@@ -32,7 +32,7 @@ def eval_multiple(args):
     dist_setup = setup_dist_from_mpi(port=29500)
     args.eval = True
 
-    for checkpoint_name in os.listdir(args.exp_name):
+    for checkpoint_name in os.listdir(f'{uglobals.CHECKPOINT_DIR}/args.exp_name'):
         # Test set prior inference
         args.eval_on_train = False
         args.checkpoint = f'{uglobals.CHECKPOINT_PATH}/{args.exp_name}/{checkpoint_name}'
