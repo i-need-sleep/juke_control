@@ -230,7 +230,7 @@ def eval(model, loader, hps, args):
     n_pred, n_hit = 0, 0
 
     for batch_idx, batch in enumerate(loader):
-        if args.debug:
+        if args.debug or True:
             if batch_idx not in [201, 501, 2101]:
                 continue
         # bs is always 1
