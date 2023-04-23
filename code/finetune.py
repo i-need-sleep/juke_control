@@ -202,7 +202,7 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
 
         # Save checkpoint
         with torch.no_grad():
-            if hps.save and (logger.iters % hps.save_iters == 1 or finished_training):
+            if hps.save and (logger.iters % hps.save_iters == 1 or finished_training) and logger.iters > 5000:
                 if ema is not None: ema.swap()
                 orig_model.eval()
                 name = f'step_{logger.iters}'

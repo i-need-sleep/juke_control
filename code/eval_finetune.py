@@ -33,6 +33,8 @@ def eval_multiple(args):
     args.eval = True
 
     for checkpoint_name in os.listdir(f'{uglobals.CHECKPOINT_DIR}/{args.exp_name}'):
+        if 'pth' not in checkpoint_name:
+            continue
         # Test set prior inference
         args.eval_on_train = False
         args.checkpoint = f'{uglobals.CHECKPOINT_DIR}/{args.exp_name}/{checkpoint_name}'
