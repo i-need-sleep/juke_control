@@ -35,7 +35,7 @@ def eval_multiple(args):
     for checkpoint_name in os.listdir(f'{uglobals.CHECKPOINT_DIR}/{args.exp_name}'):
         # Test set prior inference
         args.eval_on_train = False
-        args.checkpoint = f'{uglobals.CHECKPOINT_PATH}/{args.exp_name}/{checkpoint_name}'
+        args.checkpoint = f'{uglobals.CHECKPOINT_DIR}/{args.exp_name}/{checkpoint_name}'
         args.name = f'{args.exp_name}_{checkpoint_name}'
 
         # Decode to wav
