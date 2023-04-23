@@ -231,7 +231,7 @@ def eval(model, loader, hps, args):
 
     for batch_idx, batch in enumerate(loader):
         if args.debug or True:
-            if batch_idx not in [201, 501, 2101]:
+            if batch_idx not in [201, 501, 1201]:
                 continue
         # bs is always 1
         # Unpack batch

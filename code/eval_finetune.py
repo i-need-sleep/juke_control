@@ -41,17 +41,16 @@ def eval_multiple(args):
         # Decode to wav
         z_dir = finetune(args, dist_setup=dist_setup)
         wav_dir = z_dir.replace(uglobals.MUSDB18_Z_OUT, uglobals.MUSDB18_WAV_OUT)
-        src_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/test/{args.tar}'
+        src_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/test/{args.src}'
         dec(z_dir, src_dir, wav_dir, dist_setup)
 
         # Train set
         args.eval_on_train = True
         args.name = f'{args.exp_name}_{checkpoint_name}_train'
-        save_dir = finetune(args, dist_setup=dist_setup)
-        z_dir = finetune(args, dist_setup=dist_setup)
 
+        z_dir = finetune(args, dist_setup=dist_setup)
         wav_dir = z_dir.replace(uglobals.MUSDB18_Z_OUT, uglobals.MUSDB18_WAV_OUT)
-        src_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/train/{args.tar}'
+        src_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/train/{args.src}'
         dec(z_dir, src_dir, wav_dir, dist_setup)
 
     return
