@@ -29,6 +29,7 @@ def finetune(args, dist_setup=None):
     if args.debug:
         args.batch_size = 1
         args.controlnet = True
+        args.eval = True
 
     print(args)
 
@@ -94,7 +95,7 @@ def finetune(args, dist_setup=None):
         else:
             loader = test_loader
         if args.controlnet:
-            raise NotImplementedError
+            save_dir = eval_controlnet(model, loader, hps, args)
         else:
             save_dir = eval(model, loader, hps, args)
         return save_dir
@@ -367,6 +368,62 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
             
     logger.close_range()
     return {key: metrics.avg(key) for key in _metrics.keys()}
+
+def eval_controlnet(model, loader, hps, args):
+    model.eval()
+
+    save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    n_pred, n_hit = 0, 0
+
+    for batch_idx, batch in enumerate(loader):
+        if args.debug or True:
+            if batch_idx not in [201, 501, 1201]:
+                continue
+
+        # bs is always 1
+        # Unpack batch
+        z_src = batch['z_src'].to('cuda', non_blocking=True).long()
+        z_tar = batch['z_tar'].to('cuda', non_blocking=True).long()
+        pred_mask = batch['pred_mask'].to('cuda', non_blocking=True)
+        pad_mask = batch['pad_mask'].to('cuda', non_blocking=True)
+        song_name = batch['song_name']
+        start = batch['start']
+        total = batch['total']
+
+        # Build y with default artist/style/lyrics conditions
+        raw_to_tokens = model.raw_to_tokens
+        for i in range(z_src.shape[0]):
+            label = model.labeller.get_label('unknown', 'unknown', '', total[i]*raw_to_tokens, start[i]*raw_to_tokens) # duration (sr), offset within song  
+            if i == 0:
+                y = torch.tensor(label['y']).reshape(1, -1).to('cuda', non_blocking=True)
+            else:
+                y = torch.cat((y, torch.tensor(label['y']).reshape(1, -1).to('cuda', non_blocking=True)), dim=0)
+
+        if hps.prior:
+            forw_kwargs = dict(y=y, fp16=hps.fp16)
+        else:
+            forw_kwargs = dict(loss_fn=hps.loss_fn, hps=hps)
+
+        # Sample z sequence
+        z_pred, z_true = model.controlnet_sample_z(z_src, z_tar, pred_mask, pad_mask, **forw_kwargs)
+        
+        # Calculate accuracy
+        n_pred += z_pred.shape[1]
+        n_hit += torch.sum(z_pred == z_true).int()
+
+        # Save z
+        save_path = f'{save_dir}/{song_name[0]}_{start[0]}_{total[0]}.pt'
+        torch.save({
+            'z_pred': z_pred,
+            'z_true': z_true,
+        }, save_path)
+
+    # Evaluate acc
+    print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
+    return save_dir
 
 if __name__ == '__main__':
 

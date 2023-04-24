@@ -5,6 +5,7 @@ import numpy as np
 import torch as t
 import torch.nn as nn
 import jukebox.utils.dist_adapter as dist
+from tqdm import tqdm
 
 from jukebox.transformer.ops import LayerNorm
 from jukebox.prior.autoregressive import ConditionalAutoregressive2D
@@ -605,3 +606,133 @@ class SimplePrior(nn.Module):
             z_tar = z_tar.float()
         return z_tar
     
+    def controlnet_sample_z(self, z_src, z_tar, pred_mask, pad_mask, y=None, z_conds=[], fp16=False, get_preds=False, get_attn_weights=False):
+        """
+        Arguments:
+            get_attn_weights (bool or set): Makes forward prop dump
+                self-attention softmaxes to self.prior.transformer.ws. Either a
+                set of layer indices indicating which layers to store, or a
+                boolean value indicating whether to dump all.
+        """
+        assert isinstance(get_attn_weights, (bool, set))
+        x_cond, y_cond, prime = self.get_cond(z_conds, y)
+        z_src, x_cond = self.prior_preprocess([prime, z_src], [None, x_cond])
+        x_cond, y_cond, prime = self.get_cond(z_conds, y)
+        z_tar, x_cond = self.prior_preprocess([prime, z_tar], [None, x_cond])
+
+        # Account for the left-concatted cond
+        pad_mask = t.cat((t.zeros_like(prime), pad_mask), dim=1)
+        pred_mask = t.cat((t.zeros_like(prime), pred_mask), dim=1)
+        
+        z_pred, z_true = self.controlnet_prior_sample(z_src, z_tar, pred_mask, pad_mask, x_cond, y_cond, fp16=fp16, get_sep_loss=True, get_preds=get_preds)
+        
+        # Account for bins_shift
+        z_pred = z_pred - self.prior_bins_shift[1]
+        z_true = z_true - self.prior_bins_shift[1]
+
+        return z_pred, z_true
+    
+    def controlnet_prior_sample(self, z_src, z_tar, pred_mask, pad_mask, x_cond=None, y_cond=None, encoder_kv=None, fp16=False, loss_full=False,
+                encode=False, get_preds=False, get_acts=False, get_sep_loss=False):
+        # Pprocess.
+        with t.no_grad():
+            z_src = self.prior_copy.preprocess(z_src)
+            z_tar = self.prior.preprocess(z_tar)
+
+            N, D = z_src.shape
+            
+            for x in [z_src, z_tar]:
+                assert isinstance(x, t.cuda.LongTensor)
+                assert (0 <= x).all() and (x < self.prior.bins).all()
+
+            if self.prior.y_cond:
+                assert y_cond is not None
+                assert y_cond.shape == (N, 1, self.prior.width)
+            else:
+                assert y_cond is None
+
+            if self.prior.x_cond:
+                assert x_cond is not None
+                assert x_cond.shape == (N, D, self.prior.width) or x_cond.shape == (N, 1, self.prior.width), f"{x_cond.shape} != {(N, D, self.prior.width)} nor {(N, 1, self.prior.width)}. Did you pass the correct --sample_length?"
+            else:
+                assert x_cond is None
+                x_cond = t.zeros((N, 1, self.prior.width), device=x.device, dtype=t.float)
+
+            z_tar_t = z_tar # Target
+            z_src = roll(z_src, 1) # Shift by 1
+            z_tar = roll(z_tar, 1)
+
+            # Also shift the masks
+            pad_mask = roll(pad_mask, 1)
+
+            # At test time, mask off all the target z sequence
+            pad_mask[pred_mask == 1] = 1
+
+            # Locate the span to predict
+            for i in range(pred_mask.shape[1]):
+                if pred_mask[0, i] == 1:
+                    start_idx = i
+                    break
+
+            # Autoregressive sampling
+            for i in tqdm(range(t.sum(pred_mask).int())):
+                pred_idx =  start_idx + i
+
+                # Remove the pad mask at the current token
+                pad_mask[:, pred_idx] = 0
+
+                # Make embs 
+                emb_src = self.prior_copy.x_emb(z_src)
+                emb_tar = self.prior.x_emb(z_tar)
+
+                # Apply the pad masks
+                emb_src[pad_mask == 1] = self.prior_copy.pad_token
+                emb_tar[pad_mask == 1] = self.prior.pad_token
+            
+                # Fill in start token. The first token is always pad and can be safely replaced.
+                if self.prior.y_cond:
+                    emb_src[:,0] = y_cond.view(N, self.prior_copy.width)
+                    emb_tar[:,0] = y_cond.view(N, self.prior.width)
+                else:
+                    emb_src[:,0] = self.prior_copy.start_token
+                    emb_tar[:,0] = self.prior.start_token
+
+                emb_src = self.prior_copy.x_emb_dropout(emb_src) + self.prior_copy.pos_emb_dropout(self.prior_copy.pos_emb()) + x_cond # Pos emb and dropout
+                emb_tar = self.prior.x_emb_dropout(emb_tar) + self.prior.pos_emb_dropout(self.prior.pos_emb()) + x_cond # Pos emb and dropout
+
+                x = self.controlnet_transformer_forward(emb_src, emb_tar, encoder_kv=encoder_kv, fp16=fp16) # Transformer
+
+                if self.debug:
+                    x_cond = x_cond.cpu()
+                    pred_mask = pred_mask.cpu()
+                    z_tar_t = z_tar_t.cpu()
+
+                if self.prior.add_cond_after_transformer: # Piped doesnt add x_cond
+                    x = x + x_cond
+
+                pred = self.prior.x_out(x) # Predictions
+
+                pred = pred[:, pred_idx, :] 
+                # Argmax samping
+                # pred = t.argmax(pred[0])
+
+                # Sample by softmax
+                pred = t.nn.Softmax(dim=1)(pred)[0]
+                pred = t.multinomial(pred, 1)[0]
+                
+                if i < 40:
+                    print(pred)
+                    print(z_tar_t[0, pred_idx])
+                
+                # Update the input sequence
+                if i == z_tar.shape[1] - 1:
+                    z_tar[0, 0] = pred
+                else:
+                    z_tar[0, pred_idx+1] = pred
+            
+            # Return the predicted z sequence
+            z_tar = roll(z_tar, -1)
+            z_pred = z_tar[:, start_idx: start_idx+t.sum(pred_mask).int()]
+            z_true = z_tar_t[:, start_idx: start_idx+t.sum(pred_mask).int()]
+
+            return z_pred, z_true

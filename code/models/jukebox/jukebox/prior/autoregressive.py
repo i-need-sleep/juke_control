@@ -470,91 +470,91 @@ class ConditionalAutoregressive2D(nn.Module):
             with t.no_grad():
                 x = self.preprocess(x)
 
-            N, D = x.shape
-            assert isinstance(x, t.cuda.LongTensor)
-            assert (0 <= x).all() and (x < self.bins).all()
+                N, D = x.shape
+                assert isinstance(x, t.cuda.LongTensor)
+                assert (0 <= x).all() and (x < self.bins).all()
 
-            if self.y_cond:
-                assert y_cond is not None
-                assert y_cond.shape == (N, 1, self.width)
-            else:
-                assert y_cond is None
-
-            if self.x_cond:
-                assert x_cond is not None
-                assert x_cond.shape == (N, D, self.width) or x_cond.shape == (N, 1, self.width), f"{x_cond.shape} != {(N, D, self.width)} nor {(N, 1, self.width)}. Did you pass the correct --sample_length?"
-            else:
-                assert x_cond is None
-                x_cond = t.zeros((N, 1, self.width), device=x.device, dtype=t.float)
-                
-            x_t = x # Target
-            x = roll(x, 1) # Shift by 1
-
-            # Also shift the masks
-            sep_mask = roll(sep_mask, 1)
-            pad_mask = roll(pad_mask, 1)
-
-            # At test time, mask off all the target z sequence
-            pad_mask[pred_mask == 1] = 1
-
-            # Locate the span to predict
-            for i in range(pred_mask.shape[1]):
-                if pred_mask[0, i] == 1:
-                    start_idx = i
-                    break
-                
-            # Autoregressive sampling
-            for i in tqdm(range(t.sum(pred_mask).int())):
-                pred_idx =  start_idx + i
-
-                # Remove the pad mask at the current token
-                pad_mask[:, pred_idx] = 0
-
-                # Make embs
-                emb = self.x_emb(x)
-
-                # Apply the sep and pad masks
-                emb[sep_mask == 1] = self.sep_token
-                emb[pad_mask == 1] = self.pad_token
-            
-                # Fill in start token. The first token is always pad and can be safely replaced.
                 if self.y_cond:
-                    emb[:,0] = y_cond.view(N, self.width)
+                    assert y_cond is not None
+                    assert y_cond.shape == (N, 1, self.width)
                 else:
-                    emb[:,0] = self.start_token
+                    assert y_cond is None
 
-                emb = self.x_emb_dropout(emb) + self.pos_emb_dropout(self.pos_emb()) + x_cond # Pos emb and dropout
-
-                emb = self.transformer(emb, encoder_kv=encoder_kv, fp16=fp16) # Transformer
-                if self.add_cond_after_transformer: # Piped doesnt add x_cond
-                    emb = emb + x_cond
-
-                pred = self.x_out(emb) # Predictions
-
-                pred = pred[:, pred_idx, :] 
-                # Argmax samping
-                # pred = t.argmax(pred[0])
-
-                # Sample by softmax
-                pred = t.nn.Softmax(dim=1)(pred)[0]
-                pred = t.multinomial(pred, 1)[0]
-                
-                if i < 40:
-                    print(pred)
-                    print(x_t[0, pred_idx])
-                
-                # Update the input sequence
-                if i == x.shape[1] - 1:
-                    x[0, 0] = pred
+                if self.x_cond:
+                    assert x_cond is not None
+                    assert x_cond.shape == (N, D, self.width) or x_cond.shape == (N, 1, self.width), f"{x_cond.shape} != {(N, D, self.width)} nor {(N, 1, self.width)}. Did you pass the correct --sample_length?"
                 else:
-                    x[0, pred_idx+1] = pred
-            
-            # Return the predicted z sequence
-            x = roll(x, -1)
-            z_pred = x[:, start_idx: start_idx+t.sum(pred_mask).int()]
-            z_true = x_t[:, start_idx: start_idx+t.sum(pred_mask).int()]
+                    assert x_cond is None
+                    x_cond = t.zeros((N, 1, self.width), device=x.device, dtype=t.float)
+                    
+                x_t = x # Target
+                x = roll(x, 1) # Shift by 1
 
-            return z_pred, z_true
+                # Also shift the masks
+                sep_mask = roll(sep_mask, 1)
+                pad_mask = roll(pad_mask, 1)
+
+                # At test time, mask off all the target z sequence
+                pad_mask[pred_mask == 1] = 1
+
+                # Locate the span to predict
+                for i in range(pred_mask.shape[1]):
+                    if pred_mask[0, i] == 1:
+                        start_idx = i
+                        break
+                    
+                # Autoregressive sampling
+                for i in tqdm(range(t.sum(pred_mask).int())):
+                    pred_idx =  start_idx + i
+
+                    # Remove the pad mask at the current token
+                    pad_mask[:, pred_idx] = 0
+
+                    # Make embs
+                    emb = self.x_emb(x)
+
+                    # Apply the sep and pad masks
+                    emb[sep_mask == 1] = self.sep_token
+                    emb[pad_mask == 1] = self.pad_token
+                
+                    # Fill in start token. The first token is always pad and can be safely replaced.
+                    if self.y_cond:
+                        emb[:,0] = y_cond.view(N, self.width)
+                    else:
+                        emb[:,0] = self.start_token
+
+                    emb = self.x_emb_dropout(emb) + self.pos_emb_dropout(self.pos_emb()) + x_cond # Pos emb and dropout
+
+                    emb = self.transformer(emb, encoder_kv=encoder_kv, fp16=fp16) # Transformer
+                    if self.add_cond_after_transformer: # Piped doesnt add x_cond
+                        emb = emb + x_cond
+
+                    pred = self.x_out(emb) # Predictions
+
+                    pred = pred[:, pred_idx, :] 
+                    # Argmax samping
+                    # pred = t.argmax(pred[0])
+
+                    # Sample by softmax
+                    pred = t.nn.Softmax(dim=1)(pred)[0]
+                    pred = t.multinomial(pred, 1)[0]
+                    
+                    if i < 40:
+                        print(pred)
+                        print(x_t[0, pred_idx])
+                    
+                    # Update the input sequence
+                    if i == x.shape[1] - 1:
+                        x[0, 0] = pred
+                    else:
+                        x[0, pred_idx+1] = pred
+                
+                # Return the predicted z sequence
+                x = roll(x, -1)
+                z_pred = x[:, start_idx: start_idx+t.sum(pred_mask).int()]
+                z_true = x_t[:, start_idx: start_idx+t.sum(pred_mask).int()]
+
+                return z_pred, z_true
            
 
 
