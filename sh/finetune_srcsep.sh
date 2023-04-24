@@ -26,5 +26,6 @@ python -u finetune.py \
     --name finetune_srcsep \
     --batch_size 4 \
     --src mix \
-    --tar vocals
+    --tar vocals \
+    --lr 3e-5
 echo "FINISH"                       # 输出起始信息
