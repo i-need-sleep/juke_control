@@ -345,7 +345,7 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
 
         # Average and log
         for key, val in _metrics.items():
-            _metrics[key] = metrics.update(key, val, z.shape[0])
+            _metrics[key] = metrics.update(key, val, z_tar.shape[0])
             if logger.iters % hps.log_steps == 0:
                 logger.add_scalar(key, _metrics[key])
 

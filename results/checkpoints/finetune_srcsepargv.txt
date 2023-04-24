@@ -1,1 +1,1 @@
-finetune.py --name finetune_srcsep --batch_size 4 --src mix --tar vocals
+finetune.py --name finetune_srcsep --batch_size 4 --src mix --tar vocals --lr 3e-5
