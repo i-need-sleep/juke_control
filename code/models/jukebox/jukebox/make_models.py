@@ -183,9 +183,13 @@ def make_prior(hps, vqvae, device='cuda', debug=False):
     prior.alignment_layer = hps.get('alignment_layer', None)
 
     # Initialise the controlnet components
-    if hps.controlnet:
-        print('Initializing ControlNet parameters')
-        prior.initialize_controlnet()
+    try:
+        if hps.controlnet:
+            print('Initializing ControlNet parameters')
+            prior.initialize_controlnet()
+    except:
+        hps.controlnet = False
+        print('ControlNet not initialized')
 
     if hps.fp16_params:
         print_all("Converting to fp16 params")
@@ -211,7 +215,6 @@ def make_prior(hps, vqvae, device='cuda', debug=False):
 def make_model(model, device, hps, levels=None):
     vqvae, *priors = MODELS[model]
     load_vqvae_hps = setup_hparams(vqvae, dict(sample_length=hps.get('sample_length', 0), sample_length_in_seconds=hps.get('sample_length_in_seconds', 0)))
-    load_vqvae_hps.strict = hps.strict
     vqvae = make_vqvae(load_vqvae_hps, device)
     hps.sample_length = vqvae.sample_length
     if levels is None:
@@ -219,7 +222,6 @@ def make_model(model, device, hps, levels=None):
     priors_out = []
     for level in levels:
         load_prior_hps = setup_hparams(priors[level], dict())
-        load_prior_hps.strict = hps.strict
         prior = make_prior(load_prior_hps, vqvae, 'cpu')
         priors_out.append(prior)
     return vqvae, priors_out
