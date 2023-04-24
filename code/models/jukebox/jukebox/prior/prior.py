@@ -1,4 +1,5 @@
 from copy import deepcopy
+import functools
 
 import numpy as np
 import torch as t
@@ -13,6 +14,8 @@ from jukebox.data.labels import EmptyLabeller, Labeller
 from jukebox.utils.torch_utils import assert_shape
 from jukebox.utils.dist_utils import print_once
 from jukebox.vqvae.vqvae import calculate_strides
+from jukebox.prior.autoregressive import roll
+from jukebox.utils.checkpoint import checkpoint
 
 
 """
@@ -30,9 +33,9 @@ class SimplePrior(nn.Module):
     def __init__(self, z_shapes, l_bins, encoder, decoder, level,
                  downs_t, strides_t, labels, prior_kwargs, x_cond_kwargs, y_cond_kwargs,
                  prime_kwargs, copy_input, labels_v3=False,
-                 merged_decoder=False, single_enc_dec=False):
+                 merged_decoder=False, single_enc_dec=False, debug=False):
         super().__init__()
-
+        self.debug= debug
         self.use_tokens = prime_kwargs.pop('use_tokens')
         self.n_tokens = prime_kwargs.pop('n_tokens')
         self.prime_loss_fraction = prime_kwargs.pop('prime_loss_fraction')
@@ -435,10 +438,171 @@ class SimplePrior(nn.Module):
     
     def initialize_controlnet(self):
         # Copy the top transformer prior (the weights will be copied later)
-        self.prior.transformer_copy = deepcopy(self.prior.transformer)
+        self.prior_copy = deepcopy(self.prior)
 
         # Initialize zero convs
+        zero_convs = []
+        for _ in range(len(self.prior.transformer._attn_mods) + 1):
+            if self.debug:
+                conv = t.nn.utils.skip_init(t.nn.Conv2d, 1, 1, 1) # channel_in, channel_out, kernel_size
+            else:
+                conv = t.nn.utils.skip_init(t.nn.Conv2d, 1, 1, 1, dtype=t.half).cuda() # channel_in, channel_out, kernel_size
+            zero_convs.append(conv)
+        self.zero_convs = t.nn.ModuleList(zero_convs)
         return
     
     def controlnet_copy_params(self):
-        self.prior.transformer_copy.load_state_dict(self.prior.transformer.state_dict())
+        self.prior_copy.load_state_dict(self.prior.state_dict())
+
+    def controlnet_forward(self, z_src, z_tar, pred_mask, pad_mask, y, fp16=False, decode=False, get_preds=False):
+        z_conds = []
+        loss, metrics = self.controlnet_z_forward(z_src, z_tar, pred_mask, pad_mask, z_conds=z_conds, y=y, fp16=fp16, get_preds=get_preds)
+        
+        x_out = None
+        return x_out, loss, metrics
+
+    def controlnet_z_forward(self, z_src, z_tar, pred_mask, pad_mask, y=None, z_conds=[], fp16=False, get_preds=False, get_attn_weights=False):
+        """
+        Arguments:
+            get_attn_weights (bool or set): Makes forward prop dump
+                self-attention softmaxes to self.prior.transformer.ws. Either a
+                set of layer indices indicating which layers to store, or a
+                boolean value indicating whether to dump all.
+        """
+        assert isinstance(get_attn_weights, (bool, set))
+        x_cond, y_cond, prime = self.get_cond(z_conds, y)
+        z_src, x_cond = self.prior_preprocess([prime, z_src], [None, x_cond])
+        x_cond, y_cond, prime = self.get_cond(z_conds, y)
+        z_tar, x_cond = self.prior_preprocess([prime, z_tar], [None, x_cond])
+
+        # Account for the left-concatted cond
+        pad_mask = t.cat((t.zeros_like(prime), pad_mask), dim=1)
+
+        (prime_loss, gen_loss), preds = self.controlnet_prior_forward(z_src, z_tar, pred_mask, pad_mask, x_cond, y_cond, fp16=fp16, get_sep_loss=True, get_preds=get_preds)
+
+        loss = (self.prime_loss_fraction*prime_loss*self.prime_loss_dims/self.total_loss_dims) + \
+                   (gen_loss*self.gen_loss_dims/self.total_loss_dims)
+        metrics=dict(bpd=gen_loss.clone().detach(), prime_loss=prime_loss.clone().detach(),
+                     gen_loss=gen_loss.clone().detach())
+        if get_preds:
+            metrics["preds"] = preds.clone().detach()
+        if get_attn_weights:
+            ws = self.prior.transformer.ws
+            self.prior.transformer.set_record_attn(False)
+            return ws
+        else:
+            return loss, metrics
+        
+    def controlnet_prior_forward(self, z_src, z_tar, pred_mask, pad_mask, x_cond=None, y_cond=None, encoder_kv=None, fp16=False, loss_full=False,
+                encode=False, get_preds=False, get_acts=False, get_sep_loss=False):
+        # Pprocess.
+        with t.no_grad():
+            z_src = self.prior_copy.preprocess(z_src)
+            z_tar = self.prior.preprocess(z_tar)
+
+        N, D = z_src.shape
+        
+        for x in [z_src, z_tar]:
+            assert isinstance(x, t.cuda.LongTensor)
+            assert (0 <= x).all() and (x < self.prior.bins).all()
+
+        if self.prior.y_cond:
+            assert y_cond is not None
+            assert y_cond.shape == (N, 1, self.prior.width)
+        else:
+            assert y_cond is None
+
+        if self.prior.x_cond:
+            assert x_cond is not None
+            assert x_cond.shape == (N, D, self.prior.width) or x_cond.shape == (N, 1, self.prior.width), f"{x_cond.shape} != {(N, D, self.prior.width)} nor {(N, 1, self.prior.width)}. Did you pass the correct --sample_length?"
+        else:
+            assert x_cond is None
+            x_cond = t.zeros((N, 1, self.prior.width), device=x.device, dtype=t.float)
+
+        z_tar_t = z_tar # Target
+        z_src = self.prior_copy.x_emb(z_src) # X emb
+        z_tar = self.prior.x_emb(z_tar)
+        z_src = roll(z_src, 1) # Shift by 1
+        z_tar = roll(z_tar, 1)
+
+        # Also shift the masks
+        pad_mask = roll(pad_mask, 1)
+
+        # Apply the pad masks
+        z_src[pad_mask == 1] = self.prior_copy.pad_token
+        z_tar[pad_mask == 1] = self.prior.pad_token
+        
+        # Fill in start token. The first token is always pad and can be safely replaced.
+        if self.prior.y_cond:
+            z_src[:,0] = y_cond.view(N, self.prior_copy.width)
+            z_tar[:,0] = y_cond.view(N, self.prior.width)
+        else:
+            z_src[:,0] = self.prior_copy.start_token
+            z_tar[:,0] = self.prior.start_token
+
+        z_src = self.prior_copy.x_emb_dropout(z_src) + self.prior_copy.pos_emb_dropout(self.prior_copy.pos_emb()) + x_cond # Pos emb and dropout
+        z_tar = self.prior.x_emb_dropout(z_tar) + self.prior.pos_emb_dropout(self.prior.pos_emb()) + x_cond # Pos emb and dropout
+
+        x = self.controlnet_transformer_forward(z_src, z_tar, encoder_kv=encoder_kv, fp16=fp16) # Transformer
+
+        if self.debug:
+            x_cond = x_cond.cpu()
+            pred_mask = pred_mask.cpu()
+            z_tar_t = z_tar_t.cpu()
+
+        if self.prior.add_cond_after_transformer: # Piped doesnt add x_cond
+            x = x + x_cond
+
+        acts = x
+        if self.prior.only_encode:
+            return x
+        x = self.prior.x_out(x) # Predictions
+
+        print(x[0, 2000, 23])
+
+        assert self.prior.prime_len is not None
+        x_gen = x[:, self.prior.prime_len:][pred_mask == 1].reshape(-1, self.prior.bins)
+
+        gen_loss = t.nn.functional.cross_entropy(x_gen, z_tar_t[:, self.prior.prime_len:][pred_mask == 1].reshape(-1)) / np.log(2.)
+        prime_loss = t.zeros_like(gen_loss)
+
+        loss = (prime_loss, gen_loss) # Note order! Prime is first
+
+        if get_preds:
+            return loss, x
+        elif get_acts:
+            return loss, acts
+        else:
+            return loss, None
+        
+    def controlnet_transformer_forward(self, z_src, z_tar, encoder_kv=None, sample=False, fp16=False, fp16_out=False):
+        if self.debug:
+            self.cpu()
+            z_src = z_src.cpu()
+            z_tar = z_tar.cpu()
+        elif fp16:
+            z_src = z_src.half()
+            z_tar = z_tar.half()
+
+        # Blocks
+        for i,l in enumerate(self.prior.transformer._attn_mods):
+            # Zero conv for the inputs
+            if i == 0:
+                z_src = z_src + t.squeeze(self.zero_convs[0](t.unsqueeze(z_tar, 1)), 1)
+
+            # Frozen copy
+            f = functools.partial(l, encoder_kv=None, sample=sample)
+            z_tar = checkpoint(f, (z_tar,), l.parameters(), True)
+
+            # Trainable (condition) copy
+            l = self.prior_copy.transformer._attn_mods[i]
+            f = functools.partial(l, encoder_kv=None, sample=sample)
+            z_src = checkpoint(f, (z_src,), l.parameters(), True)
+
+            # Zero conv
+            z_tar = z_tar + t.squeeze(self.zero_convs[0](t.unsqueeze(z_src, 1)), 1)
+
+        if not fp16_out:
+            z_tar = z_tar.float()
+        return z_tar
+    

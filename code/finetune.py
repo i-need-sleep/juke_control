@@ -75,7 +75,7 @@ def finetune(args, dist_setup=None):
     # Setup models
     vqvae = make_vqvae(hps, device)
     print_once(f"Parameters VQVAE:{count_parameters(vqvae)}")
-    prior = make_prior(hps, vqvae, device)
+    prior = make_prior(hps, vqvae, device, debug=args.debug)
     print_once(f"Parameters Prior:{count_parameters(prior)}")
     model = prior
 
@@ -90,9 +90,13 @@ def finetune(args, dist_setup=None):
 
     if args.eval:
         if args.eval_on_train:
-            save_dir = eval(model, train_loader, hps, args)
+            loader = train_loader
         else:
-            save_dir = eval(model, test_loader, hps, args)
+            loader = test_loader
+        if args.controlnet:
+            raise NotImplementedError
+        else:
+            save_dir = eval(model, loader, hps, args)
         return save_dir
     
     # Loggers
@@ -104,7 +108,10 @@ def finetune(args, dist_setup=None):
         metrics.reset()
         train_loader.dataset.slice_data()
         if hps.train:
-            train_metrics = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
+            if hps.controlnet:
+                train_metrics = train_controlnet(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
+            else:
+                train_metrics = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
             train_metrics['epoch'] = epoch
             if rank == 0:
                 print('Train',' '.join([f'{key}: {val:0.4f}' for key,val in train_metrics.items()]))
@@ -272,6 +279,99 @@ def eval(model, loader, hps, args):
     print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
     return save_dir
 
+def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps, args):
+    model.train()
+    orig_model.train()
+    if hps.prior:
+        _print_keys = dict(l="loss", bpd="bpd", gn="gn", g_l="gen_loss", p_l="prime_loss")
+    else:
+        _print_keys = dict(l="loss", sl="spectral_loss", rl="recons_loss", e="entropy", u="usage", uc="used_curr", gn="gn", pn="pn", dk="dk")
+
+    for batch_idx, batch in logger.get_range(loader):
+        
+        # Unpack batch
+        z_src = batch['z_src'].to('cuda', non_blocking=True).long()
+        z_tar = batch['z_tar'].to('cuda', non_blocking=True).long()
+        pred_mask = batch['pred_mask'].to('cuda', non_blocking=True)
+        pad_mask = batch['pad_mask'].to('cuda', non_blocking=True)
+        song_name = batch['song_name']
+        start = batch['start']
+        total = batch['total']
+
+        # Build y with default artist/style/lyrics conditions
+        raw_to_tokens = orig_model.raw_to_tokens
+        for i in range(z_src.shape[0]):
+            label = orig_model.labeller.get_label('unknown', 'unknown', '', total[i]*raw_to_tokens, start[i]*raw_to_tokens) # duration (sr), offset within song  
+            if i == 0:
+                y = torch.tensor(label['y']).reshape(1, -1).to('cuda', non_blocking=True)
+            else:
+                y = torch.cat((y, torch.tensor(label['y']).reshape(1, -1).to('cuda', non_blocking=True)), dim=0)
+
+        log_input_output = (logger.iters % hps.save_iters == 0)
+        
+        if hps.prior:
+            forw_kwargs = dict(y=y, fp16=hps.fp16, decode=log_input_output)
+        else:
+            forw_kwargs = dict(loss_fn=hps.loss_fn, hps=hps)
+            
+        # Forward
+        x_out, loss, _metrics = orig_model.controlnet_forward(z_src, z_tar, pred_mask, pad_mask, **forw_kwargs)
+        print('yay')
+        exit()
+
+        # Backward
+        loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=list(model.parameters()),
+                                                                        scalar=scalar, fp16=hps.fp16, logger=logger)
+
+        # Skip step if overflow
+        grad_norm = allreduce(grad_norm, op=dist.ReduceOp.MAX)
+        if overflow_loss or overflow_grad or grad_norm > hps.ignore_grad_norm > 0:
+            zero_grad(orig_model)
+            continue
+
+        # Step opt. Divide by scale to include clipping and fp16 scaling
+        logger.step()
+        opt.step(scale=clipped_grad_scale(grad_norm, hps.clip, scale))
+        zero_grad(orig_model)
+        lr = hps.lr if shd is None else shd.get_lr()[0]
+        if shd is not None: shd.step()
+        if ema is not None: ema.step()
+        next_lr = hps.lr if shd is None else shd.get_lr()[0]
+        finished_training = (next_lr == 0.0)
+
+        # Logging
+        for key, val in _metrics.items():
+            _metrics[key] = val.item()
+        _metrics["loss"] = loss = loss.item() * hps.iters_before_update # Make sure to call to free graph
+        _metrics["gn"] = grad_norm
+        _metrics["lr"] = lr
+        _metrics["lg_loss_scale"] = np.log2(scale)
+
+        # Average and log
+        for key, val in _metrics.items():
+            _metrics[key] = metrics.update(key, val, z.shape[0])
+            if logger.iters % hps.log_steps == 0:
+                logger.add_scalar(key, _metrics[key])
+
+        # Save checkpoint
+        with torch.no_grad():
+            if hps.save and (logger.iters % hps.save_iters == 1 or finished_training) and logger.iters > 5000:
+                if ema is not None: ema.swap()
+                orig_model.eval()
+                name = f'step_{logger.iters}'
+                if dist.get_rank() % 8 == 0:
+                    print('Saving')
+                    save_checkpoint(logger, name, orig_model, opt, dict(step=logger.iters), hps)
+                orig_model.train()
+                if ema is not None: ema.swap()
+
+        logger.set_postfix(**{print_key:_metrics[key] for print_key, key in _print_keys.items()})
+        if finished_training:
+            dist.barrier()
+            exit()
+            
+    logger.close_range()
+    return {key: metrics.avg(key) for key in _metrics.keys()}
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -282,7 +382,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', default='', type=str)
 
     # Model setup
-    parser.add_argument('--control_net', action='store_true')
+    parser.add_argument('--controlnet', action='store_true')
 
     # Task
     parser.add_argument('--src', default='vocals', type=str) 

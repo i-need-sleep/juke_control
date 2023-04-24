@@ -16,6 +16,7 @@ class Z2ZDataset(Dataset):
         self.random_offset = random_offset
 
         if controlnet:
+            self.window_len = z_len - 1
             self.z_len *= 2
 
         self.sep = torch.zeros(1, 1) # Placeholders, will be replaced by learned tokens
@@ -81,11 +82,10 @@ class Z2ZDataset(Dataset):
                 pad_mask = torch.zeros_like(sep_mask)
                 
                 # Pad
-                while z.shape[1] < self.z_len:
-                    z = torch.cat((z, self.pad), dim=1)
-                    pred_mask = torch.cat((pred_mask, torch.zeros_like(self.pad)), dim=1)
-                    sep_mask = torch.cat((sep_mask, torch.zeros_like(self.pad)), dim=1)
-                    pad_mask = torch.cat((pad_mask, torch.ones_like(self.pad)), dim=1)
+                z = torch.nn.functional.pad(z, (0, self.z_len-z.shape[1]))
+                pred_mask = torch.nn.functional.pad(pred_mask, (0, self.z_len-pred_mask.shape[1]))
+                sep_mask = torch.nn.functional.pad(sep_mask, (0, self.z_len-sep_mask.shape[1]))
+                pad_mask = torch.nn.functional.pad(pad_mask, (0, self.z_len-pad_mask.shape[1]), value=1)
 
                 out.append({
                     'z': z,
@@ -142,27 +142,24 @@ def ctrl_collate(data):
         if line_idx == 0:
             z_src = line['z_src']
             z_tar = line['z_tar']
-            src_pad_mask = line['src_pad_mask']
-            tar_pad_mask = line['tar_pad_mask']
-            tar_pred_mask = line['tar_pred_mask']
+            pad_mask = line['pad_mask']
+            pred_mask = line['pred_mask']
             song_name = [line['song_name']]
             start = [line['start']]
             total = [line['total']]
         else:
             z_src  = torch.cat((z_src, line['z_src']), dim=0)
             z_tar  = torch.cat((z_tar, line['z_tar']), dim=0)
-            src_pad_mask  = torch.cat((src_pad_mask, line['src_pad_mask']), dim=0)
-            tar_pad_mask  = torch.cat((tar_pad_mask, line['tar_pad_mask']), dim=0)
-            tar_pred_mask  = torch.cat((tar_pred_mask, line['tar_pred_mask']), dim=0)
+            pad_mask  = torch.cat((pad_mask, line['pad_mask']), dim=0)
+            pred_mask  = torch.cat((pred_mask, line['pred_mask']), dim=0)
             song_name.append(line['song_name'])
             start.append(line['start'])
             total.append(line['total'])
     return {
         'z_src': z_src,
         'z_tar' : z_tar,
-        'src_pad_mask': src_pad_mask,
-        'tar_pad_mask': tar_pad_mask,
-        'tar_pred_mask': tar_pred_mask,
+        'pad_mask': pad_mask,
+        'pred_mask': pred_mask,
         'song_name': song_name,
         'start': start,
         'total': total
@@ -183,10 +180,8 @@ def decouple_line(line):
     
     # z_src and src_mask
     z_src = z[:, :sep_idx]
-    src_pad_mask = torch.zeros_like(z_src)
     # Pad
     z_src = torch.nn.functional.pad(z_src, (0, z_len - z_src.shape[1]))
-    src_pad_mask = torch.nn.functional.pad(src_pad_mask, (0, z_len - src_pad_mask.shape[1]), value=1)
 
     # z_tar and tar_mask
     z_tar = z[:, sep_idx+1: sep_idx+1+z_len] # Exclude the sep token
@@ -196,9 +191,8 @@ def decouple_line(line):
     return {
         'z_src': z_src,
         'z_tar' : z_tar,
-        'src_pad_mask': src_pad_mask,
-        'tar_pad_mask': tar_pad_mask,
-        'tar_pred_mask': tar_pred_mask,
+        'pad_mask': tar_pad_mask,
+        'pred_mask': tar_pred_mask,
         'song_name': song_name,
         'start': start,
         'total': total
@@ -206,7 +200,7 @@ def decouple_line(line):
         
                 
 def build_z2z_loader(src_dir, tar_dir, batch_size, shuffle=True, random_offset=True, controlnet=False):
-    dataset = Z2ZDataset(src_dir, tar_dir, random_offset, controlnet=False)
+    dataset = Z2ZDataset(src_dir, tar_dir, random_offset, controlnet=controlnet)
     if not controlnet:
         loader = DataLoader(dataset, batch_size=batch_size, collate_fn=mr_collate, shuffle=shuffle)
     else:
