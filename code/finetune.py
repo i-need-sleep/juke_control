@@ -199,7 +199,7 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
 
         # Save checkpoint
         with torch.no_grad():
-            if hps.save and (logger.iters % hps.save_iters == 1 or finished_training):
+            if hps.save and (logger.iters % hps.save_iters == 1 or finished_training) and logger.iters > 5000:
                 if ema is not None: ema.swap()
                 orig_model.eval()
                 name = f'step_{logger.iters}'
@@ -227,8 +227,8 @@ def eval(model, loader, hps, args):
     n_pred, n_hit = 0, 0
 
     for batch_idx, batch in enumerate(loader):
-        if args.debug:
-            if batch_idx not in [201, 501, 2101]:
+        if args.debug or True:
+            if batch_idx not in [201, 501, 1201]:
                 continue
         # bs is always 1
         # Unpack batch

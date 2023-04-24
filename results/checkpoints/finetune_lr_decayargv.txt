@@ -1,0 +1,1 @@
+finetune.py --name finetune_lr_decay --batch_size 4 --lr_start_linear_decay 0 --lr_decay 15000
