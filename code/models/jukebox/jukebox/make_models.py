@@ -181,12 +181,23 @@ def make_prior(hps, vqvae, device='cuda'):
     prior.alignment_head = hps.get('alignment_head', None)
     prior.alignment_layer = hps.get('alignment_layer', None)
 
+    # Initialise the controlnet components
+    if hps.controlnet:
+        print('Initializing ControlNet parameters')
+        prior.initialize_controlnet()
+
     if hps.fp16_params:
         print_all("Converting to fp16 params")
         from jukebox.transformer.ops import _convert_conv_weights_to_fp16
         prior.apply(_convert_conv_weights_to_fp16)
     prior = prior.to(device)
     restore_model(hps, prior, hps.restore_prior)
+
+    # Copy the original model's parameters
+    if hps.controlnet and 'checkpoint' not in hps.restore_prior:
+        print('Copying parameters for ControlNet')
+        prior.controlnet_copy_params()
+
     if hps.train:
         print_all(f"Loading prior in train mode")
         pass

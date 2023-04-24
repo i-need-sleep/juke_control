@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import numpy as np
 import torch as t
 import torch.nn as nn
@@ -430,3 +432,13 @@ class SimplePrior(nn.Module):
             z_true = z_true - self.prior_bins_shift[1]
 
             return z_pred, z_true
+    
+    def initialize_controlnet(self):
+        # Copy the top transformer prior (the weights will be copied later)
+        self.prior.transformer_copy = deepcopy(self.prior.transformer)
+
+        # Initialize zero convs
+        return
+    
+    def controlnet_copy_params(self):
+        self.prior.transformer_copy.load_state_dict(self.prior.transformer.state_dict())

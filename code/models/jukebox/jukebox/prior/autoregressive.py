@@ -538,7 +538,7 @@ class ConditionalAutoregressive2D(nn.Module):
                 pred = t.nn.Softmax(dim=1)(pred)[0]
                 pred = t.multinomial(pred, 1)[0]
                 
-                if i < 100:
+                if i < 40:
                     print(pred)
                     print(x_t[0, pred_idx])
                 

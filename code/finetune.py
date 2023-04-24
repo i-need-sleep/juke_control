@@ -25,17 +25,10 @@ import utils.globals as uglobals
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 torch.manual_seed(21) 
 
-
 def finetune(args, dist_setup=None):
     if args.debug:
-        args.name = '11001'
-        args.checkpoint = f'../results/checkpoints/apr21/checkpoint_step_{args.name}.pth.tar'
         args.batch_size = 1
-        args.eval = True
-
-        # args.eval_on_train = True
-        if args.eval_on_train:
-            args.name += '_train'
+        args.controlnet = True
 
     print(args)
 
@@ -63,17 +56,21 @@ def finetune(args, dist_setup=None):
         'save_iters': 1000,
         'lr': args.lr
     }
+    # Restore pre-trained/finetuned checkpoint
     if args.checkpoint != '':
         kwargs['restore_prior'] = args.checkpoint
+    # LR decay
     if args.lr_start_linear_decay != -1:
         kwargs['lr_start_linear_decay'] = args.lr_start_linear_decay
     if args.lr_decay != -1:
         kwargs['lr_decay'] = args.lr_decay
     hps = setup_hparams('vqvae,prior_1b_lyrics,all_fp16,cpu_ema', kwargs)
-    hps.strict = not args.eval # Allow adding new params for ft
     hps.ngpus = dist.get_world_size()
     hps.argv = " ".join(sys.argv)
     hps.bs_sample = hps.nworkers = hps.bs
+
+    hps.strict = not args.eval # Allow adding new params for ft
+    hps.controlnet = args.controlnet
 
     # Setup models
     vqvae = make_vqvae(hps, device)
@@ -88,8 +85,8 @@ def finetune(args, dist_setup=None):
     distributed_model = get_ddp(model, hps)
     
     # Make datasets
-    train_loader = dataset.build_z2z_loader(uglobals.MUSDB18_TRAIN_VOCALS_Z_DIR, uglobals.MUSDB18_TRAIN_ACC_Z_DIR, hps.bs)
-    test_loader = dataset.build_z2z_loader(uglobals.MUSDB18_TEST_VOCALS_Z_DIR, uglobals.MUSDB18_TEST_ACC_Z_DIR, 1, random_offset=False, shuffle=False)
+    train_loader = dataset.build_z2z_loader(f'{uglobals.MUSDB18_TRAIN_DIR}/{args.src}/z', f'{uglobals.MUSDB18_TRAIN_DIR}/{args.tar}/z', hps.bs, controlnet=hps.controlnet)
+    test_loader = dataset.build_z2z_loader(f'{uglobals.MUSDB18_TEST_DIR}/{args.src}/z', f'{uglobals.MUSDB18_TEST_DIR}/{args.tar}/z', 1, random_offset=False, shuffle=False, controlnet=hps.controlnet)
 
     if args.eval:
         if args.eval_on_train:
@@ -283,6 +280,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--name', default='unnamed', type=str) 
     parser.add_argument('--checkpoint', default='', type=str)
+
+    # Model setup
+    parser.add_argument('--control_net', action='store_true')
 
     # Task
     parser.add_argument('--src', default='vocals', type=str) 
