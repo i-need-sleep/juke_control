@@ -116,16 +116,6 @@ def finetune(args, dist_setup=None):
             if rank == 0:
                 print('Train',' '.join([f'{key}: {val:0.4f}' for key,val in train_metrics.items()]))
             dist.barrier()
-
-        # if hps.test:
-        #     test_loader.dataset.slice_data()
-        #     if ema: ema.swap()
-        #     test_metrics = evaluate(distributed_model, model, logger, metrics, test_loader, hps)
-        #     test_metrics['epoch'] = epoch
-        #     if rank == 0:
-        #         print('Ema',' '.join([f'{key}: {val:0.4f}' for key,val in test_metrics.items()]))
-        #     dist.barrier()
-        #     if ema: ema.swap()
         dist.barrier()
     
     return
@@ -280,6 +270,13 @@ def eval(model, loader, hps, args):
     return save_dir
 
 def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps, args):
+
+    # Build a list of the parameters to train    
+    params_to_train = []
+    for name, param in orig_model.named_parameters():
+        if 'prior.' not in name:
+            params_to_train.append(param)
+
     model.train()
     orig_model.train()
     if hps.prior:
@@ -316,11 +313,9 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
             
         # Forward
         x_out, loss, _metrics = orig_model.controlnet_forward(z_src, z_tar, pred_mask, pad_mask, **forw_kwargs)
-        print('yay')
-        exit()
 
         # Backward
-        loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=list(model.parameters()),
+        loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=params_to_train,
                                                                         scalar=scalar, fp16=hps.fp16, logger=logger)
 
         # Skip step if overflow
@@ -372,6 +367,7 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
             
     logger.close_range()
     return {key: metrics.avg(key) for key in _metrics.keys()}
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()

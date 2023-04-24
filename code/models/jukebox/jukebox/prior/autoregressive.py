@@ -436,6 +436,7 @@ class ConditionalAutoregressive2D(nn.Module):
         x = self.x_emb_dropout(x) + self.pos_emb_dropout(self.pos_emb()) + x_cond # Pos emb and dropout
 
         x = self.transformer(x, encoder_kv=encoder_kv, fp16=fp16) # Transformer
+
         if self.add_cond_after_transformer: # Piped doesnt add x_cond
             x = x + x_cond
 

@@ -447,6 +447,8 @@ class SimplePrior(nn.Module):
                 conv = t.nn.utils.skip_init(t.nn.Conv2d, 1, 1, 1) # channel_in, channel_out, kernel_size
             else:
                 conv = t.nn.utils.skip_init(t.nn.Conv2d, 1, 1, 1, dtype=t.half).cuda() # channel_in, channel_out, kernel_size
+            t.nn.init.constant_(conv.weight, 0)
+            t.nn.init.constant_(conv.bias, 0)
             zero_convs.append(conv)
         self.zero_convs = t.nn.ModuleList(zero_convs)
         return
@@ -558,8 +560,6 @@ class SimplePrior(nn.Module):
             return x
         x = self.prior.x_out(x) # Predictions
 
-        print(x[0, 2000, 23])
-
         assert self.prior.prime_len is not None
         x_gen = x[:, self.prior.prime_len:][pred_mask == 1].reshape(-1, self.prior.bins)
 
@@ -600,8 +600,7 @@ class SimplePrior(nn.Module):
             z_src = checkpoint(f, (z_src,), l.parameters(), True)
 
             # Zero conv
-            z_tar = z_tar + t.squeeze(self.zero_convs[0](t.unsqueeze(z_src, 1)), 1)
-
+            z_tar = z_tar + t.squeeze(self.zero_convs[i + 1](t.unsqueeze(z_src, 1)), 1)
         if not fp16_out:
             z_tar = z_tar.float()
         return z_tar
