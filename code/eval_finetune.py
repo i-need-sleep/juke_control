@@ -64,6 +64,7 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true')
 
     parser.add_argument('--exp_name', default='', type=str)
+    parser.add_argument('--controlnet', action='store_true')
 
     # Task
     parser.add_argument('--src', default='vocals', type=str) 
