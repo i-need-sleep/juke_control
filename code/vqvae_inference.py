@@ -17,7 +17,7 @@ import utils.globals as uglobals
 # Globals
 MODEL = '1b_lyrics'
 
-def enc_dec(dir, out_dir, dist_setup=None):
+def enc_dec(dir, out_dir, dist_setup=None, controlnet=False):
     # Set up devices
     if dist_setup == None:
         rank, local_rank, device = setup_dist_from_mpi(port=29500)
@@ -35,6 +35,7 @@ def enc_dec(dir, out_dir, dist_setup=None):
         hop_fraction = [0.5, 0.5, 0.125]
     )
     hps.strict = False
+    hps.controlnet = controlnet
 
     # Load the models
     vqvae, priors = make_model(MODEL, device, hps)
@@ -75,7 +76,7 @@ def enc_dec(dir, out_dir, dist_setup=None):
                     os.makedirs(f'{save_name_recons}_{2-prior_lv}')
                 save_wav(f'{save_name_recons}_{2-prior_lv}', x_recons, hps.sr)
 
-def dec(pred_dir, src_dir, out_dir, dist_setup=None):
+def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
     # Set up devices
     if dist_setup == None:
         rank, local_rank, device = setup_dist_from_mpi(port=29500)
@@ -93,6 +94,7 @@ def dec(pred_dir, src_dir, out_dir, dist_setup=None):
         hop_fraction = [0.5, 0.5, 0.125]
     )
     hps.strict = False
+    hps.controlnet = controlnet
 
     # Load the models
     vqvae, priors = make_model(MODEL, device, hps)

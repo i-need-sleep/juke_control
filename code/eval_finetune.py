@@ -44,7 +44,7 @@ def eval_multiple(args):
         z_dir = finetune(args, dist_setup=dist_setup)
         wav_dir = z_dir.replace(uglobals.MUSDB18_Z_OUT, uglobals.MUSDB18_WAV_OUT)
         src_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/test/{args.src}'
-        dec(z_dir, src_dir, wav_dir, dist_setup)
+        dec(z_dir, src_dir, wav_dir, dist_setup, controlnet=args.controlnet)
 
         # Train set
         args.eval_on_train = True
@@ -53,7 +53,7 @@ def eval_multiple(args):
         z_dir = finetune(args, dist_setup=dist_setup)
         wav_dir = z_dir.replace(uglobals.MUSDB18_Z_OUT, uglobals.MUSDB18_WAV_OUT)
         src_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/train/{args.src}'
-        dec(z_dir, src_dir, wav_dir, dist_setup)
+        dec(z_dir, src_dir, wav_dir, dist_setup, controlnet=args.controlnet)
 
     return
 
