@@ -28,8 +28,6 @@ torch.manual_seed(21)
 def finetune(args, dist_setup=None):
     if args.debug:
         args.batch_size = 1
-        args.controlnet = True
-        args.eval = True
 
     print(args)
 
@@ -108,20 +106,34 @@ def finetune(args, dist_setup=None):
     for epoch in range(hps.curr_epoch, hps.epochs):
         metrics.reset()
         train_loader.dataset.slice_data()
-        if hps.train:
-            if hps.controlnet:
-                train_metrics = train_controlnet(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
-            else:
-                train_metrics = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
-            train_metrics['epoch'] = epoch
+        # if hps.train:
+        #     if hps.controlnet:
+        #         train_metrics = train_controlnet(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
+        #     else:
+        #         train_metrics = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
+        #     train_metrics['epoch'] = epoch
+        #     if rank == 0:
+        #         print('Train',' '.join([f'{key}: {val:0.4f}' for key,val in train_metrics.items()]))
+        #     dist.barrier()
+
+        if epoch % args.eval_epoch_interval == 0:
+            # Eval for test loader loss
+            test_loader.dataset.slice_data()
+            with torch.no_grad():
+                if hps.controlnet:
+                    losses = train_controlnet(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args, eval=True)
+                else:
+                    losses = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args, eval=True)
             if rank == 0:
-                print('Train',' '.join([f'{key}: {val:0.4f}' for key,val in train_metrics.items()]))
+                avg_loss = sum(losses) / len(losses)
+                print(f'Dev eval epoch: {epoch}, loss: {avg_loss}')
+                logger.add_scalar('Dev loss', avg_loss)
             dist.barrier()
         dist.barrier()
     
     return
 
-def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps, args):
+def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps, args, eval=False):
     model.train()
     orig_model.train()
     if hps.prior:
@@ -129,9 +141,9 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
     else:
         _print_keys = dict(l="loss", sl="spectral_loss", rl="recons_loss", e="entropy", u="usage", uc="used_curr", gn="gn", pn="pn", dk="dk")
 
+    losses = []
+
     for batch_idx, batch in logger.get_range(loader):
-        if args.debug and batch_idx < 1090:
-            continue
         
         # Unpack batch
         z = batch['z'].to('cuda', non_blocking=True).long()
@@ -160,6 +172,9 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
             
         # Forward
         x_out, loss, _metrics = orig_model.finetune_forward(z, pred_mask, sep_mask, pad_mask, **forw_kwargs)
+
+        if eval:
+            losses.append(float(loss.detach().cpu()))
 
         # Backward
         loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=list(model.parameters()),
@@ -211,6 +226,9 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
         if finished_training:
             dist.barrier()
             exit()
+    
+    if eval:
+        return losses
             
     logger.close_range()
     return {key: metrics.avg(key) for key in _metrics.keys()}
@@ -270,7 +288,7 @@ def eval(model, loader, hps, args):
     print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
     return save_dir
 
-def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps, args):
+def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps, args, eval=False):
 
     # Build a list of the parameters to train    
     params_to_train = []
@@ -284,6 +302,8 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
         _print_keys = dict(l="loss", bpd="bpd", gn="gn", g_l="gen_loss", p_l="prime_loss")
     else:
         _print_keys = dict(l="loss", sl="spectral_loss", rl="recons_loss", e="entropy", u="usage", uc="used_curr", gn="gn", pn="pn", dk="dk")
+
+    losses = []
 
     for batch_idx, batch in logger.get_range(loader):
         
@@ -314,6 +334,9 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
             
         # Forward
         x_out, loss, _metrics = orig_model.controlnet_forward(z_src, z_tar, pred_mask, pad_mask, **forw_kwargs)
+
+        if eval:
+            losses.append(float(loss.detach().cpu()))
 
         # Backward
         loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=params_to_train,
@@ -421,6 +444,9 @@ def eval_controlnet(model, loader, hps, args):
             'z_true': z_true,
         }, save_path)
 
+    if eval:
+        return losses
+
     # Evaluate acc
     print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
     return save_dir
@@ -446,6 +472,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', default=3e-4, type=float)
     parser.add_argument('--lr_start_linear_decay', default=-1, type=int) # already_trained_steps
     parser.add_argument('--lr_decay', default=-1, type=int) # decay_steps_as_needed
+    parser.add_argument('--eval_epoch_interval', default='1', type=int)
 
     # Eval
     parser.add_argument('--eval', action='store_true')

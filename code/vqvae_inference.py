@@ -160,36 +160,4 @@ def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
     return
 
 if __name__ == '__main__':
-    rank, local_rank, device = setup_dist_from_mpi(port=29500)
-
-    # Set up model hps for inference
-    hps = Hyperparams(
-        name = 'sample_1b',
-        levels = 3,
-        sample_length_in_seconds = 20,
-        total_sample_length_in_seconds = 180,
-        sr = 44100,
-        n_samples = 1,
-        hop_fraction = [0.5, 0.5, 0.125]
-    )
-    hps.strict = False
-
-    # Load the models
-    vqvae, priors = make_model(MODEL, device, hps)
-    print(11111111)
-
-    # Set up model hps for inference
-    hps = Hyperparams(
-        name = 'sample_1b',
-        levels = 3,
-        sample_length_in_seconds = 20,
-        total_sample_length_in_seconds = 180,
-        sr = 44100,
-        n_samples = 1,
-        hop_fraction = [0.5, 0.5, 0.125]
-    )
-    hps.strict = False
-
-    # Load the models
-    vqvae, priors = make_model(MODEL, device, hps)
-    print(222222222)
+    dec(f'{uglobals.MUSDB18_Z_OUT}/eval_debug', f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_WAV_OUT}/eval_debug')
