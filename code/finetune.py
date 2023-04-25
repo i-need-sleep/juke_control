@@ -388,6 +388,9 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
         if finished_training:
             dist.barrier()
             exit()
+
+    if eval:
+        return losses
             
     logger.close_range()
     return {key: metrics.avg(key) for key in _metrics.keys()}
@@ -443,9 +446,6 @@ def eval_controlnet(model, loader, hps, args):
             'z_pred': z_pred,
             'z_true': z_true,
         }, save_path)
-
-    if eval:
-        return losses
 
     # Evaluate acc
     print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
