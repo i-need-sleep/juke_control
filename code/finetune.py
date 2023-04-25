@@ -106,15 +106,15 @@ def finetune(args, dist_setup=None):
     for epoch in range(hps.curr_epoch, hps.epochs):
         metrics.reset()
         train_loader.dataset.slice_data()
-        # if hps.train:
-        #     if hps.controlnet:
-        #         train_metrics = train_controlnet(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
-        #     else:
-        #         train_metrics = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
-        #     train_metrics['epoch'] = epoch
-        #     if rank == 0:
-        #         print('Train',' '.join([f'{key}: {val:0.4f}' for key,val in train_metrics.items()]))
-        #     dist.barrier()
+        if hps.train:
+            if hps.controlnet:
+                train_metrics = train_controlnet(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
+            else:
+                train_metrics = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args)
+            train_metrics['epoch'] = epoch
+            if rank == 0:
+                print('Train',' '.join([f'{key}: {val:0.4f}' for key,val in train_metrics.items()]))
+            dist.barrier()
 
         if epoch % args.eval_epoch_interval == 0:
             # Eval for test loader loss
