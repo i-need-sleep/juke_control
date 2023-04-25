@@ -175,6 +175,7 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
 
         if eval:
             losses.append(float(loss.detach().cpu()))
+            continue
 
         # Backward
         loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=list(model.parameters()),
@@ -337,6 +338,7 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
 
         if eval:
             losses.append(float(loss.detach().cpu()))
+            continue
 
         # Backward
         loss, scale, grad_norm, overflow_loss, overflow_grad = backward(loss=loss, params=params_to_train,
