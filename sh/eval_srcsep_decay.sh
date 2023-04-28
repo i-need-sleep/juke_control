@@ -23,7 +23,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 export HF_HOME=/l/users/yichen.huang/misc/cache
 export XDG_CACHE_HOME=/l/users/yichen.huang/misc/cache
 python -u eval_finetune.py \
-    --exp_name finetune_srcsep_decay \
+    --exp_name controlnet_lr_decay3e-5 \
     --src mix \
     --tar vocals
 echo "FINISH"                       # 输出起始信息
