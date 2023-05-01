@@ -255,10 +255,14 @@ def eval(model, loader, hps, args):
 
     n_pred, n_hit = 0, 0
 
+    if args.dataset == 'musdb18':
+        indices = uglobals.musdb18_finetune_indices[: eval_size]
+    else:
+        indices = [3, 10, 21]
     for batch_idx, batch in enumerate(loader):
-        if args.debug or True:
-            if batch_idx not in uglobals.musdb18_finetune_indices[: eval_size]:
-                continue
+        if batch_idx not in indices:
+            continue
+        
         # bs is always 1
         # Unpack batch
         z = batch['z'].to('cuda', non_blocking=True).long()
@@ -423,10 +427,13 @@ def eval_controlnet(model, loader, hps, args):
 
     n_pred, n_hit = 0, 0
 
+    if args.dataset == 'musdb18':
+        indices = uglobals.musdb18_finetune_indices[: eval_size]
+    else:
+        indices = [3, 10, 21]
     for batch_idx, batch in enumerate(loader):
-        if args.debug or True:
-            if batch_idx not in uglobals.musdb18_controlnet_indices[: eval_size]:
-                continue
+        if batch_idx not in indices:
+            continue
 
         # bs is always 1
         # Unpack batch
