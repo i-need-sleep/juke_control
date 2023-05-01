@@ -53,7 +53,7 @@ def enc_dec(dir, out_dir, dist_setup=None, controlnet=False):
         if not 'wav' in file_name:
             continue
         sample_path = f'{dir}/{file_name}'
-        save_name_z = f'{out_dir}/z/{file_name}'.replace('wav', 'pt')
+        save_name_z = f'{out_dir}/z/{file_name}'.replace('.wav', '.pt')
         save_name_recons = f'{out_dir}/recons/{file_name}'
 
         with torch.no_grad():
@@ -163,9 +163,9 @@ def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
     return
 
 if __name__ == '__main__':
-    dist_setup = enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/dev/vocals', f'{uglobals.MUSDB18_ORACLE}/dev/vocals')
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/dev/mix', f'{uglobals.MUSDB18_ORACLE}/dev/mix', dist_setup=dist_setup)
-    
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/accompaniment', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/dev/accompaniment', f'{uglobals.MUSDB18_ORACLE}/dev/accompaniment', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/accompaniment', f'{uglobals.MUSDB18_ORACLE}/test/accompaniment', dist_setup=dist_setup)
+    dist_setup = None
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/wav/train', f'{uglobals.URMP_ORACLE}/train/wav', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/sine/dev', f'{uglobals.URMP_ORACLE}/dev/sine', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/wav/dev', f'{uglobals.URMP_ORACLE}/dev/wav', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/sine/test', f'{uglobals.URMP_ORACLE}/test/sine', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/wav/test', f'{uglobals.URMP_ORACLE}test/wav/', dist_setup=dist_setup)

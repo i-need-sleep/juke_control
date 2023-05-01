@@ -31,6 +31,7 @@ MUSDB18_TEST_ACC_Z_DIR = f'{MUSDB18_ORACLE}/test/acc/z'
 URMP_DIR = f'{DATA_DIR}/URMP'
 URMP_RAW_DIR = f'{URMP_DIR}/raw'
 URMP_PROCESSED_DIR = f'{URMP_DIR}/processed'
+URMP_ORACLE = f'{URMP_DIR}/oracle'
 
 # Output
 OUT_PATH = '../results/outputs'

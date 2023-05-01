@@ -84,9 +84,15 @@ def finetune(args, dist_setup=None):
     distributed_model = get_ddp(model, hps)
     
     # Make datasets
-    train_loader = dataset.build_z2z_loader(f'{uglobals.MUSDB18_TRAIN_DIR}/{args.src}/z', f'{uglobals.MUSDB18_TRAIN_DIR}/{args.tar}/z', hps.bs, controlnet=hps.controlnet)
-    dev_loader = dataset.build_z2z_loader(f'{uglobals.MUSDB18_DEV_DIR}/{args.src}/z', f'{uglobals.MUSDB18_DEV_DIR}/{args.tar}/z', 1, random_offset=False, shuffle=False, controlnet=hps.controlnet)
-    test_loader = dataset.build_z2z_loader(f'{uglobals.MUSDB18_TEST_DIR}/{args.src}/z', f'{uglobals.MUSDB18_TEST_DIR}/{args.tar}/z', 1, random_offset=False, shuffle=False, controlnet=hps.controlnet)
+    if args.dataset == 'musdb18':
+        dir = uglobals.MUSDB18_ORACLE
+    elif args.dataset == 'urmp':
+        dir = uglobals.URMP_ORACLE
+    else:
+        raise NotImplementedError
+    train_loader = dataset.build_z2z_loader(f'{dir}/train/{args.src}/z', f'{dir}/train/{args.tar}/z', hps.bs, controlnet=hps.controlnet)
+    dev_loader = dataset.build_z2z_loader(f'{dir}/dev/{args.src}/z', f'{dir}/dev/{args.tar}/z', 1, random_offset=False, shuffle=False, controlnet=hps.controlnet)
+    test_loader = dataset.build_z2z_loader(f'{dir}/test/{args.src}/z', f'{dir}/test/{args.tar}/z', 1, random_offset=False, shuffle=False, controlnet=hps.controlnet)
 
     if args.eval:
         if args.eval_on_train:
@@ -241,7 +247,7 @@ def eval(model, loader, hps, args):
     try:
         eval_size = args.eval_size
     except:
-        ecal_size = 10
+        eval_size = 3
 
     save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
     if not os.path.exists(save_dir):
@@ -403,13 +409,13 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
     logger.close_range()
     return {key: metrics.avg(key) for key in _metrics.keys()}
 
-def eval_controlnet(model, loader, hps, args, eval_size = 10):
+def eval_controlnet(model, loader, hps, args):
     model.eval()
 
     try:
         eval_size = args.eval_size
     except:
-        ecal_size = 10
+        eval_size = 3
 
     save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
     if not os.path.exists(save_dir):
@@ -477,6 +483,7 @@ if __name__ == '__main__':
     parser.add_argument('--controlnet', action='store_true')
 
     # Task
+    parser.add_argument('--dataset', default='musdb18', type=str) 
     parser.add_argument('--src', default='vocals', type=str) 
     parser.add_argument('--tar', default='acc', type=str) 
 
