@@ -168,4 +168,4 @@ if __name__ == '__main__':
     dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/sine/dev', f'{uglobals.URMP_ORACLE}/dev/sine', dist_setup=dist_setup)
     dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/wav/dev', f'{uglobals.URMP_ORACLE}/dev/wav', dist_setup=dist_setup)
     dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/sine/test', f'{uglobals.URMP_ORACLE}/test/sine', dist_setup=dist_setup)
-    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/wav/test', f'{uglobals.URMP_ORACLE}test/wav/', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/wav/test', f'{uglobals.URMP_ORACLE}/test/wav/', dist_setup=dist_setup)

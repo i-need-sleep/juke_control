@@ -247,7 +247,7 @@ def eval(model, loader, hps, args):
     try:
         eval_size = args.eval_size
     except:
-        eval_size = 3
+        eval_size = 5
 
     save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
     if not os.path.exists(save_dir):
@@ -415,7 +415,7 @@ def eval_controlnet(model, loader, hps, args):
     try:
         eval_size = args.eval_size
     except:
-        eval_size = 3
+        eval_size = 5
 
     save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
     if not os.path.exists(save_dir):
