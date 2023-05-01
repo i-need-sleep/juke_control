@@ -1,6 +1,7 @@
 import os
 import random
 import shutil
+import math
 
 import numpy as np
 import tqdm
@@ -80,27 +81,55 @@ def make_urmp_splits(dev_size=4, test_size=5):
 def midi_to_wav(velo=70):
     # Synthesize MIDI files with sine waves
     import pretty_midi
+    import audiolazy
+
     for split in ['dev', 'test', 'train']:
         in_dir = f'{uglobals.URMP_RAW_DIR}/{split}'
-        out_dir = f'{uglobals.URMP_PROCESSED_DIR}/{split}'
-        if not os.path.exists(out_dir):    
-            os.makedirs(out_dir)
+        out_dir = f'{uglobals.URMP_PROCESSED_DIR}/sine/{split}'
+        wav_out_dir = f'{uglobals.URMP_PROCESSED_DIR}/wav/{split}'
+        for dir in [out_dir, wav_out_dir]:
+            if not os.path.exists(dir):    
+                os.makedirs(dir)
 
         for folder_name in os.listdir(in_dir):
             for f in os.listdir(f'{in_dir}/{folder_name}'):
-                if f[-3:] == 'mid' and f[0] != '.':
-                    file_name = f
-                    break
+                if f[-3:] == 'wav' and f[:5] == 'AuMix':
+                    wav_name = f
         
-            in_path = f'{in_dir}/{folder_name}/{file_name}'
+            # Copy the original wav
+            sr, wav = wavfile.read(f'{in_dir}/{folder_name}/{wav_name}')
 
-            pm = pretty_midi.PrettyMIDI(in_path)
+            # Split songs into chunks of < 1 min
+            i = 0
+            chunk_size = sr * 60
+            while i <= wav.shape[0]:
+                s_chunk = wav[i: i + chunk_size]
+
+                wavfile.write(f'{wav_out_dir}/{folder_name}_{int(i/chunk_size)}.wav', sr, s_chunk)
+                i += chunk_size
             
-            # Set all velocities to a constant
-            for inst in pm.instruments:
-                for note in inst.notes:
-                    note.velocity = velo
+            # Convert note annotations into midi
+            pm = pretty_midi.PrettyMIDI(initial_tempo=60)
+            inst = pretty_midi.Instrument(1)
 
+            # Resolve the note level annotations 
+            for file in os.listdir(f'{in_dir}/{folder_name}'):
+                if f'Notes_' in file and file[0] != '.':
+                    with open(f'{in_dir}/{folder_name}/{file}', 'r') as f:
+                        lines = f.readlines()
+            
+                    # Set all velocities to a constant
+                    # Map each note to have the ground-truth timings
+                    for line in lines:
+                        start, freq, dur = line.split('		')
+                        start = float(start)
+                        freq = float(freq)
+                        dur = float(dur)
+                        pitch = round(audiolazy.lazy_midi.freq2midi(freq))
+                        note = pretty_midi.Note(start=start, end=start+dur, pitch=pitch, velocity=velo)
+                        inst.notes.append(note)
+            
+            pm.instruments.append(inst)
             synthesized = pm.synthesize(fs=uglobals.SAMPLE_RATE, wave=np.sin)
             wavfile.write(f'{uglobals.DATA_DIR}/temp.wav', uglobals.SAMPLE_RATE ,synthesized)
 
@@ -112,4 +141,5 @@ def midi_to_wav(velo=70):
 
                 wavfile.write(f'{out_dir}/{folder_name}_{int(i/chunk_size)}.wav', uglobals.SAMPLE_RATE, s_chunk)
                 i += chunk_size
+                
     return
