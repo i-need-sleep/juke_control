@@ -1,7 +1,10 @@
+# Setups
+SAMPLE_RATE = 44100
+
 # Data
 DATA_DIR = '../data'
 
-# DATA:MUSDB18
+# DATA: MUSDB18
 MUSDB18_PATH = f'{DATA_DIR}/musdb18'
 MUSDB18_RAW_DIR = f'{MUSDB18_PATH}/raw'
 MUSDB18_PROCESSED_PATH = f'{MUSDB18_PATH}/processed'
@@ -23,6 +26,11 @@ MUSDB18_DEV_ACC_Z_DIR = f'{MUSDB18_ORACLE}/dev/acc/z'
 MUSDB18_TEST_DIR = f'{MUSDB18_ORACLE}/test'
 MUSDB18_TEST_VOCALS_Z_DIR = f'{MUSDB18_ORACLE}/test/vocals/z'
 MUSDB18_TEST_ACC_Z_DIR = f'{MUSDB18_ORACLE}/test/acc/z'
+
+# Data: URMP
+URMP_DIR = f'{DATA_DIR}/URMP'
+URMP_RAW_DIR = f'{URMP_DIR}/raw'
+URMP_PROCESSED_DIR = f'{URMP_DIR}/processed'
 
 # Output
 OUT_PATH = '../results/outputs'
