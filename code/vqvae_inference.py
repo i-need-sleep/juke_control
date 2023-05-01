@@ -76,7 +76,7 @@ def enc_dec(dir, out_dir, dist_setup=None, controlnet=False):
                     os.makedirs(f'{save_name_recons}_{2-prior_lv}')
                 save_wav(f'{save_name_recons}_{2-prior_lv}', x_recons, hps.sr)
 
-    return dist_setup
+    return rank, local_rank, device
 
 def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
     # Set up devices
@@ -146,7 +146,7 @@ def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
         start_idx = int(math.floor(src_wav.shape[1] / int(total) * int(start)))
 
         src_slice = src_wav[:, start_idx: start_idx + x_pred.shape[1]]
-        src_slice = torch.tensor(src_slice).reshape(1, -1, 1).cuda() / 20000 # TODO: Check the scale 
+        src_slice = torch.tensor(src_slice).reshape(1, -1, 1).cuda() / 40000 # TODO: Check the scale 
 
         mix_pred = src_slice + x_pred
         mix_oracle = src_slice + x_true
@@ -158,13 +158,14 @@ def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
             os.makedirs(f'{save_dir}/mix_oracle')
         save_wav(f'{save_dir}/mix_pred', mix_pred, hps.sr)
         save_wav(f'{save_dir}/mix_oracle', mix_oracle, hps.sr)
+        save_wav(f'{save_dir}/src', src_slice, hps.sr)
 
     return
 
 if __name__ == '__main__':
-    dist_setup = enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/mix', f'{uglobals.MUSDB18_ORACLE}/train/mix', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/mix', f'{uglobals.MUSDB18_ORACLE}/test/mix', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/acc', f'{uglobals.MUSDB18_ORACLE}/train/acc', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/acc', f'{uglobals.MUSDB18_ORACLE}/test/acc', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/dev/vocals', f'{uglobals.MUSDB18_ORACLE}/dev/vocals')
+    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/dev/mix', f'{uglobals.MUSDB18_ORACLE}/dev/mix', dist_setup=dist_setup)
+    
+    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/accompaniment', f'{uglobals.MUSDB18_ORACLE}/train/accompaniment', dist_setup=dist_setup)
+    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/dev/accompaniment', f'{uglobals.MUSDB18_ORACLE}/dev/accompaniment', dist_setup=dist_setup)
+    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/accompaniment', f'{uglobals.MUSDB18_ORACLE}/test/accompaniment', dist_setup=dist_setup)
