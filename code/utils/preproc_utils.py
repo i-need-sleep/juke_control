@@ -1,4 +1,5 @@
 import os
+import random
 
 import numpy as np
 import tqdm
@@ -6,13 +7,22 @@ import stempeg
 
 import utils.globals as uglobals
 
+def make_musdb18_splits(dev_size=10):
+    # Randomly select songs from the MUSDB18 train split to make a dev split
+    if not os.path.exists(f'{uglobals.MUSDB18_PATH}/dev'):    
+        os.makedirs(f'{uglobals.MUSDB18_PATH}/dev')
+
+    for idx in range(dev_size):
+        file_name = random.choice(os.listdir(f'{uglobals.MUSDB18_PATH}/train'))
+        os.rename(f'{uglobals.MUSDB18_PATH}/train/{file_name}', f'{uglobals.MUSDB18_PATH}/dev/{file_name}')
+
 def stem_to_wav():
     tracks = ['mix', 'drums', 'bass', 'other', 'vocals', 'accompaniment']
     splits = ['train', 'dev', 'test']
 
     for split in splits:
-        for file_name in tqdm.tqdm(os.listdir(f'{uglobals.MUSDB18_PATH}/{split}')):
-            file_path = f'{uglobals.MUSDB18_PATH}/{split}/{file_name}'
+        for file_name in tqdm.tqdm(os.listdir(f'{uglobals.MUSDB18_RAW_DIR}/{split}')):
+            file_path = f'{uglobals.MUSDB18_RAW_DIR}/{split}/{file_name}'
 
             for stem_id in range(6):
                 if stem_id < 5:

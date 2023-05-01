@@ -76,6 +76,8 @@ def enc_dec(dir, out_dir, dist_setup=None, controlnet=False):
                     os.makedirs(f'{save_name_recons}_{2-prior_lv}')
                 save_wav(f'{save_name_recons}_{2-prior_lv}', x_recons, hps.sr)
 
+    return dist_setup
+
 def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
     # Set up devices
     if dist_setup == None:
@@ -160,4 +162,9 @@ def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
     return
 
 if __name__ == '__main__':
-    dec(f'{uglobals.MUSDB18_Z_OUT}/eval_debug', f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_WAV_OUT}/eval_debug')
+    dist_setup = enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
+    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals', dist_setup=dist_setup)
+    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/mix', f'{uglobals.MUSDB18_ORACLE}/train/mix', dist_setup=dist_setup)
+    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/mix', f'{uglobals.MUSDB18_ORACLE}/test/mix', dist_setup=dist_setup)
+    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/acc', f'{uglobals.MUSDB18_ORACLE}/train/acc', dist_setup=dist_setup)
+    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/acc', f'{uglobals.MUSDB18_ORACLE}/test/acc', dist_setup=dist_setup)

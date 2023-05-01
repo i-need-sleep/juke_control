@@ -76,6 +76,9 @@ if __name__ == '__main__':
     parser.add_argument('--lr_start_linear_decay', default=-1, type=int) # already_trained_steps
     parser.add_argument('--lr_decay', default=-1, type=int) # decay_steps_as_needed
 
+    # Eval
+    parser.add_argument('--eval_size', default='10', type=int)
+
     args = parser.parse_args()
 
     eval_multiple(args)

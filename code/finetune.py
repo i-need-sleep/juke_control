@@ -85,6 +85,7 @@ def finetune(args, dist_setup=None):
     
     # Make datasets
     train_loader = dataset.build_z2z_loader(f'{uglobals.MUSDB18_TRAIN_DIR}/{args.src}/z', f'{uglobals.MUSDB18_TRAIN_DIR}/{args.tar}/z', hps.bs, controlnet=hps.controlnet)
+    dev_loader = dataset.build_z2z_loader(f'{uglobals.MUSDB18_DEV_DIR}/{args.src}/z', f'{uglobals.MUSDB18_DEV_DIR}/{args.tar}/z', 1, random_offset=False, shuffle=False, controlnet=hps.controlnet)
     test_loader = dataset.build_z2z_loader(f'{uglobals.MUSDB18_TEST_DIR}/{args.src}/z', f'{uglobals.MUSDB18_TEST_DIR}/{args.tar}/z', 1, random_offset=False, shuffle=False, controlnet=hps.controlnet)
 
     if args.eval:
@@ -118,12 +119,12 @@ def finetune(args, dist_setup=None):
 
         if epoch % args.eval_epoch_interval == 0:
             # Eval for test loader loss
-            test_loader.dataset.slice_data()
+            dev_loader.dataset.slice_data()
             with torch.no_grad():
                 if hps.controlnet:
                     losses = train_controlnet(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args, eval=True)
                 else:
-                    losses = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args, eval=True)
+                    losses = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, dev_loader, hps, args, eval=True)
             if rank == 0:
                 avg_loss = sum(losses) / len(losses)
                 print(f'Dev eval epoch: {epoch}, loss: {avg_loss}')
@@ -237,6 +238,11 @@ def train(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps
 def eval(model, loader, hps, args):
     model.eval()
 
+    try:
+        eval_size = args.eval_size
+    except:
+        ecal_size = 10
+
     save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -245,7 +251,7 @@ def eval(model, loader, hps, args):
 
     for batch_idx, batch in enumerate(loader):
         if args.debug or True:
-            if batch_idx not in [201, 501, 1201]:
+            if batch_idx not in uglobals.musdb18_finetune_indices[: eval_size]:
                 continue
         # bs is always 1
         # Unpack batch
@@ -285,8 +291,8 @@ def eval(model, loader, hps, args):
             'z_true': z_true,
         }, save_path)
 
-    # Evaluate acc
-    print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
+        # Evaluate acc
+        print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
     return save_dir
 
 def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, loader, hps, args, eval=False):
@@ -397,8 +403,13 @@ def train_controlnet(model, orig_model, opt, shd, scalar, ema, logger, metrics, 
     logger.close_range()
     return {key: metrics.avg(key) for key in _metrics.keys()}
 
-def eval_controlnet(model, loader, hps, args):
+def eval_controlnet(model, loader, hps, args, eval_size = 10):
     model.eval()
+
+    try:
+        eval_size = args.eval_size
+    except:
+        ecal_size = 10
 
     save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
     if not os.path.exists(save_dir):
@@ -408,7 +419,7 @@ def eval_controlnet(model, loader, hps, args):
 
     for batch_idx, batch in enumerate(loader):
         if args.debug or True:
-            if batch_idx not in [201]: #, 501, 1201]:
+            if batch_idx not in uglobals.musdb18_controlnet_indices[: eval_size]:
                 continue
 
         # bs is always 1
@@ -449,8 +460,8 @@ def eval_controlnet(model, loader, hps, args):
             'z_true': z_true,
         }, save_path)
 
-    # Evaluate acc
-    print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
+        # Evaluate acc
+        print(f'Overall accuracy: {n_hit / n_pred}, n_pred: {n_pred}, n_hit: {n_hit}')
     return save_dir
 
 if __name__ == '__main__':
