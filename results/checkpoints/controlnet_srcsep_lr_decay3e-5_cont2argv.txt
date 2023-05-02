@@ -1,0 +1,1 @@
+finetune.py --name controlnet_srcsep_lr_decay3e-5_cont2 --controlnet --batch_size 4 --lr 3e-5 --lr_start_linear_decay 12000 --lr_decay 16000 --src mix --tar vocals --checkpoint ../results/checkpoints/controlnet_srcsep_lr_decay3e-5_cont1/checkpoint_step_12001.pth.tar

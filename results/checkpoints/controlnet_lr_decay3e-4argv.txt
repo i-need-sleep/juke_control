@@ -1,0 +1,1 @@
+finetune.py --name controlnet_lr_decay3e-4 --controlnet --batch_size 4 --lr 3e-4 --lr_start_linear_decay 0 --lr_decay 16000

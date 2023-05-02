@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=controlnet_srcsep_lr_decay3e-5_cont1       # 任务名
+#SBATCH --job-name=controlnet_srcsep_lr_decay3e-5_cont2       # 任务名
 #SBATCH --nodes=1                   # 这里不用动 多节点脚本请查官方文档
 #SBATCH --ntasks=1                  # 这里不用动 多任务脚本请查官方文档
 #SBATCH --cpus-per-task=4           # 要几块CPU (一般4块就够用了)
@@ -23,13 +23,13 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 export HF_HOME=/l/users/yichen.huang/misc/cache
 export XDG_CACHE_HOME=/l/users/yichen.huang/misc/cache
 python -u finetune.py \
-    --name controlnet_srcsep_lr_decay3e-5_cont1 \
+    --name controlnet_srcsep_lr_decay3e-5_cont2 \
     --controlnet \
     --batch_size 4 \
     --lr 3e-5 \
-    --lr_start_linear_decay 6000 \
+    --lr_start_linear_decay 12000 \
     --lr_decay 16000 \
     --src mix \
     --tar vocals \
-    --checkpoint ../results/checkpoints/controlnet_srcsep_lr_decay3e-5/checkpoint_step_6001.pth.tar
+    --checkpoint ../results/checkpoints/controlnet_srcsep_lr_decay3e-5_cont1/checkpoint_step_12001.pth.tar
 echo "FINISH"                       # 输出起始信息
