@@ -67,6 +67,7 @@ if __name__ == '__main__':
     parser.add_argument('--controlnet', action='store_true')
 
     # Task
+    parser.add_argument('--dataset', default='musdb18', type=str) 
     parser.add_argument('--src', default='vocals', type=str) 
     parser.add_argument('--tar', default='acc', type=str) 
 
