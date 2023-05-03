@@ -78,7 +78,7 @@ def enc_dec(dir, out_dir, dist_setup=None, controlnet=False):
 
     return rank, local_rank, device
 
-def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
+def dec(pred_dir, src_dir, tar_dir, out_dir, dist_setup=None, controlnet=False):
     # Set up devices
     if dist_setup == None:
         rank, local_rank, device = setup_dist_from_mpi(port=29500)
@@ -150,15 +150,43 @@ def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
 
         mix_pred = src_slice + x_pred
         mix_oracle = src_slice + x_true
+
+        # Also include a slice from the target
+        wav_root = f'{tar_dir}/{song_name}'
+
+        # Retrieve all pieces
+        i = 0
+        while True:
+            wav_path = f'{wav_root}_{i}.wav'
+            if not os.path.isfile(wav_path):
+                break
+            sr, data = wavfile.read(wav_path)
+            data = data.reshape(1, -1)
+            if i == 0:
+                tar_wav = data
+            else:
+                tar_wav = np.concatenate((tar_wav, data), axis=1)
+            i += 1
+
+        # Align the right slice
+        start_idx = int(math.floor(tar_wav.shape[1] / int(total) * int(start)))
+
+        tar_slice = tar_wav[:, start_idx: start_idx + x_pred.shape[1]]
+        tar_slice = torch.tensor(tar_slice).reshape(1, -1, 1).cuda() / 40000 # TODO: Check the scale 
         
         # Save
         if not os.path.exists(f'{save_dir}/mix_pred'):    
             os.makedirs(f'{save_dir}/mix_pred')
         if not os.path.exists(f'{save_dir}/mix_oracle'):    
             os.makedirs(f'{save_dir}/mix_oracle')
+        if not os.path.exists(f'{save_dir}/src'):    
+            os.makedirs(f'{save_dir}/src')
+        if not os.path.exists(f'{save_dir}/tar'):    
+            os.makedirs(f'{save_dir}/tar')
         save_wav(f'{save_dir}/mix_pred', mix_pred, hps.sr)
         save_wav(f'{save_dir}/mix_oracle', mix_oracle, hps.sr)
         save_wav(f'{save_dir}/src', src_slice, hps.sr)
+        save_wav(f'{save_dir}/tar', tar_slice, hps.sr)
 
     return
 

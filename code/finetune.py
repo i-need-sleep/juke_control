@@ -492,7 +492,7 @@ if __name__ == '__main__':
     # Task
     parser.add_argument('--dataset', default='musdb18', type=str) 
     parser.add_argument('--src', default='vocals', type=str) 
-    parser.add_argument('--tar', default='acc', type=str) 
+    parser.add_argument('--tar', default='accompaniment', type=str) 
 
     # Training
     parser.add_argument('--batch_size', default='1', type=int)
