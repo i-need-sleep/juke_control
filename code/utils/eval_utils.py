@@ -1,3 +1,5 @@
+import torch
+
 def prec_recall_f1(pred, ref):
     n_hit = 0
     for item in pred:
@@ -27,3 +29,11 @@ def format_prec_recall_f1(prec, recall, f1):
 
 def average(lis):
     return sum(lis) / len(lis)
+
+def convert_for_upsampling(path):
+    # Convert z output to have the right format for upsampling
+    data_out = torch.load(path)
+    torch.save(data_out, path[:-3] + 'backup.pt')
+    out = {'zs': [torch.empty((1, 0)).long(), torch.empty((1, 0)).long(), data_out['z_pred']]}
+    torch.save(out, path)
+    return out
