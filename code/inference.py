@@ -42,18 +42,22 @@ def eval_multiple(args):
 
         # Decode to wav
         z_dir = finetune(args, dist_setup=dist_setup)
+        # z_dir = '../results/outputs/musdb18/z_out/finetune_srcsep_checkpoint_step_17001.pth.tar'
         wav_dir = z_dir.replace(uglobals.MUSDB18_Z_OUT, uglobals.MUSDB18_WAV_OUT)
         src_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/test/{args.src}'
-        dec(z_dir, src_dir, wav_dir, dist_setup, controlnet=args.controlnet)
+        tar_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/test/{args.tar}'
+        dec(z_dir, src_dir, tar_dir, wav_dir, dist_setup, controlnet=args.controlnet)
 
         # Train set
-        args.eval_on_train = True
-        args.name = f'{args.exp_name}_{checkpoint_name}_train'
+        if not args.skip_train:
+            args.eval_on_train = True
+            args.name = f'{args.exp_name}_{checkpoint_name}_train'
 
-        z_dir = finetune(args, dist_setup=dist_setup)
-        wav_dir = z_dir.replace(uglobals.MUSDB18_Z_OUT, uglobals.MUSDB18_WAV_OUT)
-        src_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/train/{args.src}'
-        dec(z_dir, src_dir, wav_dir, dist_setup, controlnet=args.controlnet)
+            z_dir = finetune(args, dist_setup=dist_setup)
+            wav_dir = z_dir.replace(uglobals.MUSDB18_Z_OUT, uglobals.MUSDB18_WAV_OUT)
+            src_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/train/{args.src}'
+            tar_dir = f'{uglobals.MUSDB18_PROCESSED_PATH}/train/{args.tar}'
+            dec(z_dir, src_dir, tar_dir, wav_dir, dist_setup, controlnet=args.controlnet)
 
     return
 
@@ -69,7 +73,7 @@ if __name__ == '__main__':
     # Task
     parser.add_argument('--dataset', default='musdb18', type=str) 
     parser.add_argument('--src', default='vocals', type=str) 
-    parser.add_argument('--tar', default='acc', type=str) 
+    parser.add_argument('--tar', default='accompaniment', type=str) 
 
     # Training
     parser.add_argument('--batch_size', default='1', type=int)
@@ -79,6 +83,7 @@ if __name__ == '__main__':
 
     # Eval
     parser.add_argument('--eval_size', default='3', type=int)
+    parser.add_argument('--skip_train', action='store_true') # Skip eval on the train set
 
     args = parser.parse_args()
 
