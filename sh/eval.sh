@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=eval_controlnet_lr_decay3e-5_cont1       # 任务名
+#SBATCH --job-name=eval_controlnet_lr_decay3e-5_cont2       # 任务名
 #SBATCH --nodes=1                   # 这里不用动 多节点脚本请查官方文档
 #SBATCH --ntasks=1                  # 这里不用动 多任务脚本请查官方文档
 #SBATCH --cpus-per-task=4           # 要几块CPU (一般4块就够用了)
