@@ -125,7 +125,12 @@ def dec(pred_dir, src_dir, tar_dir, out_dir, dist_setup=None, controlnet=False):
         save_wav(f'{save_dir}/oracle', x_true, hps.sr)
 
         # Retrieve the original vocal wav
-        song_name, start, total = file_name[:-3].split('_')
+        # URMP format: underscores in song names
+        splits = file_name[:-3].split('_')
+        start = splits[-2]
+        total = splits[-1]
+        song_name = '_'.join(splits[:-2])
+
         wav_root = f'{src_dir}/{song_name}'
 
         # Retrieve all pieces

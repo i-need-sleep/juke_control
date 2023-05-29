@@ -37,6 +37,8 @@ URMP_ORACLE = f'{URMP_DIR}/oracle'
 OUT_PATH = '../results/outputs'
 MUSDB18_Z_OUT = f'{OUT_PATH}/musdb18/z_out'
 MUSDB18_WAV_OUT = f'{OUT_PATH}/musdb18/wav_out'
+URMP_Z_OUT = f'{OUT_PATH}/urmp/z_out'
+URMP_WAV_OUT = f'{OUT_PATH}/urmp/wav_out'
 
 # Checkpoints
 CHECKPOINT_DIR = f'../results/checkpoints'

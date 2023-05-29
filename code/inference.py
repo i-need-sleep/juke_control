@@ -47,8 +47,7 @@ def eval_multiple(args):
 
         # Decode to wav
         z_dir = finetune(args, dist_setup=dist_setup)
-        # z_dir = '../results/outputs/musdb18/z_out/finetune_vocal2acc_checkpoint_step_15001.pth.tar'
-        wav_dir = z_dir.replace(uglobals.MUSDB18_Z_OUT, uglobals.MUSDB18_WAV_OUT)
+        wav_dir = z_dir.replace('z_out', 'wav_out')
         src_dir = f'{processed_dir}/test/{args.src}'
         tar_dir = f'{processed_dir}/test/{args.tar}'
         dec(z_dir, src_dir, tar_dir, wav_dir, dist_setup, controlnet=args.controlnet)
@@ -59,7 +58,7 @@ def eval_multiple(args):
             args.name = f'{args.exp_name}_{checkpoint_name}_train'
 
             z_dir = finetune(args, dist_setup=dist_setup)
-            wav_dir = z_dir.replace(uglobals.MUSDB18_Z_OUT, uglobals.MUSDB18_WAV_OUT)
+            wav_dir = z_dir.replace('z_out', 'wav_out')
             src_dir = f'{processed_dir}/train/{args.src}'
             tar_dir = f'{processed_dir}/train/{args.tar}'
             dec(z_dir, src_dir, tar_dir, wav_dir, dist_setup, controlnet=args.controlnet)

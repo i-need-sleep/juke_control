@@ -249,7 +249,13 @@ def eval(model, loader, hps, args):
     except:
         eval_size = 5
 
-    save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
+    if args.dataset == 'musdb18':
+        save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
+    elif args.dataset == 'urmp':
+        save_dir = f'{uglobals.URMP_Z_OUT}/{hps.name}'
+    else:
+        raise NotImplemented
+    
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -421,7 +427,13 @@ def eval_controlnet(model, loader, hps, args):
     except:
         eval_size = 5
 
-    save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
+    if args.dataset == 'musdb18':
+        save_dir = f'{uglobals.MUSDB18_Z_OUT}/{hps.name}'
+    elif args.dataset == 'urmp':
+        save_dir = f'{uglobals.URMP_Z_OUT}/{hps.name}'
+    else:
+        raise NotImplemented
+    
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
