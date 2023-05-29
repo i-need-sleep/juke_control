@@ -53,7 +53,7 @@ def enc_dec(dir, out_dir, dist_setup=None, controlnet=False):
         if not 'wav' in file_name:
             continue
         sample_path = f'{dir}/{file_name}'
-        save_name_z = f'{out_dir}/z/{file_name}'.replace('wav', 'pt')
+        save_name_z = f'{out_dir}/z/{file_name}'.replace('.wav', '.pt')
         save_name_recons = f'{out_dir}/recons/{file_name}'
 
         with torch.no_grad():
@@ -76,9 +76,9 @@ def enc_dec(dir, out_dir, dist_setup=None, controlnet=False):
                     os.makedirs(f'{save_name_recons}_{2-prior_lv}')
                 save_wav(f'{save_name_recons}_{2-prior_lv}', x_recons, hps.sr)
 
-    return dist_setup
+    return rank, local_rank, device
 
-def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
+def dec(pred_dir, src_dir, tar_dir, out_dir, dist_setup=None, controlnet=False):
     # Set up devices
     if dist_setup == None:
         rank, local_rank, device = setup_dist_from_mpi(port=29500)
@@ -146,25 +146,54 @@ def dec(pred_dir, src_dir, out_dir, dist_setup=None, controlnet=False):
         start_idx = int(math.floor(src_wav.shape[1] / int(total) * int(start)))
 
         src_slice = src_wav[:, start_idx: start_idx + x_pred.shape[1]]
-        src_slice = torch.tensor(src_slice).reshape(1, -1, 1).cuda() / 20000 # TODO: Check the scale 
+        src_slice = torch.tensor(src_slice).reshape(1, -1, 1).cuda() / 40000 # TODO: Check the scale 
 
         mix_pred = src_slice + x_pred
         mix_oracle = src_slice + x_true
+
+        # Also include a slice from the target
+        wav_root = f'{tar_dir}/{song_name}'
+
+        # Retrieve all pieces
+        i = 0
+        while True:
+            wav_path = f'{wav_root}_{i}.wav'
+            if not os.path.isfile(wav_path):
+                break
+            sr, data = wavfile.read(wav_path)
+            data = data.reshape(1, -1)
+            if i == 0:
+                tar_wav = data
+            else:
+                tar_wav = np.concatenate((tar_wav, data), axis=1)
+            i += 1
+
+        # Align the right slice
+        start_idx = int(math.floor(tar_wav.shape[1] / int(total) * int(start)))
+
+        tar_slice = tar_wav[:, start_idx: start_idx + x_pred.shape[1]]
+        tar_slice = torch.tensor(tar_slice).reshape(1, -1, 1).cuda() / 40000 # TODO: Check the scale 
         
         # Save
         if not os.path.exists(f'{save_dir}/mix_pred'):    
             os.makedirs(f'{save_dir}/mix_pred')
         if not os.path.exists(f'{save_dir}/mix_oracle'):    
             os.makedirs(f'{save_dir}/mix_oracle')
+        if not os.path.exists(f'{save_dir}/src'):    
+            os.makedirs(f'{save_dir}/src')
+        if not os.path.exists(f'{save_dir}/tar'):    
+            os.makedirs(f'{save_dir}/tar')
         save_wav(f'{save_dir}/mix_pred', mix_pred, hps.sr)
         save_wav(f'{save_dir}/mix_oracle', mix_oracle, hps.sr)
+        save_wav(f'{save_dir}/src', src_slice, hps.sr)
+        save_wav(f'{save_dir}/tar', tar_slice, hps.sr)
 
     return
 
 if __name__ == '__main__':
-    dist_setup = enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/vocals', f'{uglobals.MUSDB18_ORACLE}/train/vocals')
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/vocals', f'{uglobals.MUSDB18_ORACLE}/test/vocals', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/mix', f'{uglobals.MUSDB18_ORACLE}/train/mix', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/mix', f'{uglobals.MUSDB18_ORACLE}/test/mix', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/train/acc', f'{uglobals.MUSDB18_ORACLE}/train/acc', dist_setup=dist_setup)
-    enc_dec(f'{uglobals.MUSDB18_PROCESSED_PATH}/test/acc', f'{uglobals.MUSDB18_ORACLE}/test/acc', dist_setup=dist_setup)
+    dist_setup = None
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/wav/train', f'{uglobals.URMP_ORACLE}/train/wav', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/sine/dev', f'{uglobals.URMP_ORACLE}/dev/sine', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/wav/dev', f'{uglobals.URMP_ORACLE}/dev/wav', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/sine/test', f'{uglobals.URMP_ORACLE}/test/sine', dist_setup=dist_setup)
+    dist_setup = enc_dec(f'{uglobals.URMP_PROCESSED_DIR}/wav/test', f'{uglobals.URMP_ORACLE}/test/wav/', dist_setup=dist_setup)

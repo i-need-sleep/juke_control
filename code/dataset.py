@@ -28,7 +28,7 @@ class Z2ZDataset(Dataset):
     def prep_data(self):
         # Build z sequences for each song
         pairs = {} # {song_name: [src, tar], ...} of [1, seq_len]
-        for idx, file_name in enumerate(os.listdir(self.src_dir)):
+        for idx, file_name in enumerate(sorted(os.listdir(self.src_dir))):
 
             # Find song names
             if '_0_2.pt' not in file_name:
