@@ -129,7 +129,7 @@ def finetune(args, dist_setup=None):
             dev_loader.dataset.slice_data()
             with torch.no_grad():
                 if hps.controlnet:
-                    losses = train_controlnet(distributed_model, model, opt, shd, scalar, ema, logger, metrics, train_loader, hps, args, eval=True)
+                    losses = train_controlnet(distributed_model, model, opt, shd, scalar, ema, logger, metrics, dev_loader, hps, args, eval=True)
                 else:
                     losses = train(distributed_model, model, opt, shd, scalar, ema, logger, metrics, dev_loader, hps, args, eval=True)
             if rank == 0:

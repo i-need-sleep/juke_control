@@ -153,9 +153,18 @@ def dec(pred_dir, src_dir, tar_dir, out_dir, dist_setup=None, controlnet=False):
         src_slice = src_wav[:, start_idx: start_idx + x_pred.shape[1]]
         src_slice = torch.tensor(src_slice).reshape(1, -1, 1).cuda() / 40000 # TODO: Check the scale 
 
-        mix_pred = src_slice + x_pred
-        mix_oracle = src_slice + x_true
-
+        try:
+            mix_pred = src_slice + x_pred
+            mix_oracle = src_slice + x_true
+            if not os.path.exists(f'{save_dir}/mix_pred'):    
+                os.makedirs(f'{save_dir}/mix_pred')
+            if not os.path.exists(f'{save_dir}/mix_oracle'):    
+                os.makedirs(f'{save_dir}/mix_oracle')
+            save_wav(f'{save_dir}/mix_pred', mix_pred, hps.sr)
+            save_wav(f'{save_dir}/mix_oracle', mix_oracle, hps.sr)
+        except:
+            pass
+        
         # Also include a slice from the target
         wav_root = f'{tar_dir}/{song_name}'
 
@@ -180,16 +189,10 @@ def dec(pred_dir, src_dir, tar_dir, out_dir, dist_setup=None, controlnet=False):
         tar_slice = torch.tensor(tar_slice).reshape(1, -1, 1).cuda() / 40000 # TODO: Check the scale 
         
         # Save
-        if not os.path.exists(f'{save_dir}/mix_pred'):    
-            os.makedirs(f'{save_dir}/mix_pred')
-        if not os.path.exists(f'{save_dir}/mix_oracle'):    
-            os.makedirs(f'{save_dir}/mix_oracle')
         if not os.path.exists(f'{save_dir}/src'):    
             os.makedirs(f'{save_dir}/src')
         if not os.path.exists(f'{save_dir}/tar'):    
             os.makedirs(f'{save_dir}/tar')
-        save_wav(f'{save_dir}/mix_pred', mix_pred, hps.sr)
-        save_wav(f'{save_dir}/mix_oracle', mix_oracle, hps.sr)
         save_wav(f'{save_dir}/src', src_slice, hps.sr)
         save_wav(f'{save_dir}/tar', tar_slice, hps.sr)
 
