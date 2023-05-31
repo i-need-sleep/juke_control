@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+import random
 
 from scipy.io import wavfile
 import torch
@@ -423,7 +424,7 @@ def eval_controlnet(model, loader, hps, args):
     model.eval()
 
     try:
-        eval_size = args.eval_size
+        eval_size = int(args.eval_size)
     except:
         eval_size = 5
 
@@ -441,8 +442,10 @@ def eval_controlnet(model, loader, hps, args):
 
     if args.dataset == 'musdb18':
         indices = uglobals.musdb18_finetune_indices[: eval_size]
+    elif args.dataset == 'urmp':
+        indices = uglobals.urmp_controlnet_indices[: eval_size]
     else:
-        indices = [3, 10, 21]
+        indices = [3, 10, 21, ]
     for batch_idx, batch in enumerate(loader):
         if batch_idx not in indices:
             continue

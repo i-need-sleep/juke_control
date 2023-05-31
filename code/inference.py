@@ -36,6 +36,8 @@ def eval_multiple(args):
         processed_dir = uglobals.MUSDB18_PROCESSED_PATH
     elif args.dataset == 'urmp':
         processed_dir = uglobals.URMP_PROCESSED_DIR
+    else:
+        raise NotImplementedError
 
     for checkpoint_name in os.listdir(f'{uglobals.CHECKPOINT_DIR}/{args.exp_name}'):
         if 'pth' not in checkpoint_name:
@@ -48,8 +50,14 @@ def eval_multiple(args):
         # Decode to wav
         z_dir = finetune(args, dist_setup=dist_setup)
         wav_dir = z_dir.replace('z_out', 'wav_out')
-        src_dir = f'{processed_dir}/test/{args.src}'
-        tar_dir = f'{processed_dir}/test/{args.tar}'
+
+        if args.dataset == 'musdb18':
+            src_dir = f'{processed_dir}/test/{args.src}'
+            tar_dir = f'{processed_dir}/test/{args.tar}'
+        elif args.dataset == 'urmp':
+            src_dir = f'{processed_dir}/{args.src}/test'
+            tar_dir = f'{processed_dir}/{args.tar}/test'
+
         dec(z_dir, src_dir, tar_dir, wav_dir, dist_setup, controlnet=args.controlnet)
 
         # Train set
@@ -59,8 +67,14 @@ def eval_multiple(args):
 
             z_dir = finetune(args, dist_setup=dist_setup)
             wav_dir = z_dir.replace('z_out', 'wav_out')
-            src_dir = f'{processed_dir}/train/{args.src}'
-            tar_dir = f'{processed_dir}/train/{args.tar}'
+            
+            if args.dataset == 'musdb18':
+                src_dir = f'{processed_dir}/train/{args.src}'
+                tar_dir = f'{processed_dir}/train/{args.tar}'
+            elif args.dataset == 'urmp':
+                src_dir = f'{processed_dir}/{args.src}/train'
+                tar_dir = f'{processed_dir}/{args.tar}/train'
+                
             dec(z_dir, src_dir, tar_dir, wav_dir, dist_setup, controlnet=args.controlnet)
 
     return

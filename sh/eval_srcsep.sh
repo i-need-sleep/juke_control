@@ -22,7 +22,7 @@ source /apps/local/anaconda3/bin/activate jukebox          # 调用 virtual env
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 export HF_HOME=/l/users/yichen.huang/misc/cache
 export XDG_CACHE_HOME=/l/users/yichen.huang/misc/cache
-python -u eval_finetune.py \
+python -u inference.py \
     --exp_name controlnet_srcsep_lr_decay3e-5_cont2 \
     --src mix \
     --tar vocals \
