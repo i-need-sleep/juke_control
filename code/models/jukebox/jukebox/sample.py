@@ -166,7 +166,7 @@ def load_codes(codes_file, duration, priors, hps):
     try:
         zs = [z.cuda() for z in data['zs']]
     except:
-        zs = [t.empty((1, 0)).long(), t.empty((1, 0)).long(), data['z_pred']]
+        zs = [t.empty((1, 0)).long().cuda(), t.empty((1, 0)).long().cuda(), data['z_pred'].cuda()]
     assert zs[-1].shape[0] == hps.n_samples, f"Expected bs = {hps.n_samples}, got {zs[-1].shape[0]}"
     del data
     if duration is not None:
