@@ -163,7 +163,10 @@ def load_prompts(audio_files, duration, hps):
 # Load codes from previous sampling run
 def load_codes(codes_file, duration, priors, hps):
     data = t.load(codes_file, map_location='cpu')
-    zs = [z.cuda() for z in data['zs']]
+    try:
+        zs = [z.cuda() for z in data['zs']]
+    except:
+        zs = [t.empty((1, 0)).long(), t.empty((1, 0)).long(), data['z_pred']]
     assert zs[-1].shape[0] == hps.n_samples, f"Expected bs = {hps.n_samples}, got {zs[-1].shape[0]}"
     del data
     if duration is not None:

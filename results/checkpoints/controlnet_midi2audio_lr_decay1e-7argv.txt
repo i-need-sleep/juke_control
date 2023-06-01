@@ -1,0 +1,1 @@
+finetune.py --name controlnet_midi2audio_lr_decay1e-7 --controlnet --batch_size 4 --lr 1e-7 --lr_start_linear_decay 0 --lr_decay 8000 --dataset urmp --src sine --tar wav
